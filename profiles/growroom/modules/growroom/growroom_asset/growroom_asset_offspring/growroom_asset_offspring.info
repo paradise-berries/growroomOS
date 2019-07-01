@@ -1,0 +1,19 @@
+name = Growroom Asset Offspring
+description = Provides offspring asset relationships.
+core = 7.x
+package = growroomOS
+dependencies[] = ctools
+dependencies[] = entityreference
+dependencies[] = growroom_asset
+dependencies[] = features
+dependencies[] = views
+features[ctools][] = views:views_default:3.0
+features[features_api][] = api:2
+features[field_base][] = field_growroom_parent
+features[views_view][] = growroom_asset_offspring
+
+; Information added by Drupal.org packaging script on 2018-11-14
+version = "7.x-0.01-beta"
+core = "7.x"
+project = "growroom"
+datestamp = "1542218112"

@@ -1,0 +1,26 @@
+<?php
+/**
+ * @file
+ * Growroom quantity install.
+ */
+
+/**
+ * Implements hook_install().
+ */
+function growroom_quantity_install() {
+
+  // Set the default system of measurement (metric), if it isn't already.
+  $unit_system = variable_get('growroom_quantity_unit_system', NULL);
+  if (empty($unit_system)) {
+    variable_set('growroom_quantity_unit_system', 'metric');
+  }
+}
+
+/**
+ * Implements hook_uninstall().
+ */
+function growroom_quantity_uninstall() {
+
+  // Delete variables.
+  variable_del('growroom_quantity_unit_system');
+}

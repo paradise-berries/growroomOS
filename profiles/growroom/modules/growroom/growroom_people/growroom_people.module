@@ -1,0 +1,7 @@
+<?php
+/**
+ * @file
+ * Code for the Growroom People feature.
+ */
+
+include_once 'growroom_people.features.inc';

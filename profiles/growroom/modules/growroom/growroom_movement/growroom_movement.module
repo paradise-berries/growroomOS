@@ -1,0 +1,262 @@
+<?php
+/**
+ * @file
+ * Growroom movement.
+ */
+
+// Include Features code.
+include_once 'growroom_movement.features.inc';
+
+// Include Asset Location code.
+include_once 'growroom_movement.location.inc';
+
+/**
+ * Implements hook_growroom_ui_entity_views().
+ */
+function growroom_movement_growroom_ui_entity_views($entity_type, $bundle, $entity) {
+  $views = array();
+
+  // Add asset movements View at the bottom of assets.
+  if ($entity_type == 'growroom_asset') {
+    $views[] = array(
+      'name' => 'growroom_movement_log',
+      'group' => 'logs_special',
+      'weight' => 100,
+    );
+  }
+
+  // Add area asset history View at the bottom of areas.
+  elseif ($entity_type == 'taxonomy_term' && $entity->vocabulary_machine_name == 'growroom_areas') {
+    $views[] = array(
+      'name' => 'growroom_area_assets',
+      'group' => 'assets',
+      'weight' => 100,
+      'always' => TRUE,
+    );
+  }
+
+  return $views;
+}
+
+/**
+ * Implements hook_growroom_map_geometries().
+ */
+function growroom_movement_growroom_map_entity_geometries($entity_type, $entity) {
+  $geometries = array();
+
+  // If there is no movement field, bail.
+  if (empty($entity->field_growroom_movement)) {
+    return;
+  }
+
+  // Load an entity metadata wrapper.
+  $entity_wrapper = entity_metadata_wrapper($entity_type, $entity);
+
+  // If the movement field collection doesn't exist, bail.
+  if (!isset($entity_wrapper->field_growroom_movement) || empty($entity_wrapper->field_growroom_movement->value())) {
+    return;
+  }
+
+  // If there is no geometry, bail.
+  if (empty($entity_wrapper->field_growroom_movement->field_growroom_geofield)) {
+    return;
+  }
+
+  // Load movement geometry.
+  $geometries['movement'] = $entity_wrapper->field_growroom_movement->field_growroom_geofield[0]->value()['geom'];
+
+  return $geometries;
+}
+
+/**
+ * Implements hook_entity_presave().
+ */
+function growroom_movement_entity_presave($entity, $type) {
+
+  // When a movement field collection entity is being saved, populate the
+  // geometry field from the "move to" area reference field.
+  if ($type == 'field_collection_item' && $entity->field_name == 'field_growroom_movement') {
+    growroom_movement_populate_geometry($entity);
+  }
+
+  // If an activity log is being saved with movement information, auto-fill the
+  // log title.
+  if ($type == 'log' && $entity->type == 'growroom_activity') {
+    growroom_movement_populate_name($entity);
+  }
+}
+
+/**
+ * Helper function for populating a movement field collection geometry from the
+ * "move to" area reference field.
+ *
+ * @param Entity $entity
+ *   The entity to act upon.
+ *
+ * @see growroom_log_entity_presave().
+ */
+function growroom_movement_populate_geometry($entity) {
+
+  // Define the area field name.
+  $area_field = 'field_growroom_move_to';
+
+  // If the log doesn't have an area reference field, bail.
+  if (!isset($entity->{$area_field})) {
+    return;
+  }
+
+  // If a geometry is already defined, bail.
+  if (!empty($entity->field_growroom_geofield[LANGUAGE_NONE][0]['geom'])) {
+    return;
+  }
+
+  // Load the area(s) referenced by the area reference field.
+  $area_ids = array();
+  if (!empty($entity->{$area_field}[LANGUAGE_NONE])) {
+    foreach ($entity->{$area_field}[LANGUAGE_NONE] as $area_reference) {
+      if (!empty($area_reference['tid'])) {
+        $area_ids[] = $area_reference['tid'];
+      }
+    }
+  }
+
+  // Extract geometries from the areas.
+  $geoms = growroom_area_extract_geoms($area_ids);
+
+  // Populate the geofield.
+  growroom_map_geofield_populate($entity, $geoms);
+}
+
+/**
+ * Helper function for populating a log's name when it contains movement info.
+ *
+ * @param Entity $log
+ *   The log entity.
+ */
+function growroom_movement_populate_name($log) {
+
+  // If the log already has a name, bail.
+  if (!empty($log->name)) {
+    return;
+  }
+
+  // Create an entity wrapper for the log.
+  $log_wrapper = entity_metadata_wrapper('log', $log);
+
+  // If there are no assets, bail.
+  if (empty($log_wrapper->field_growroom_asset)) {
+    return;
+  }
+
+  // If the movement field collection doesn't exist, bail.
+  if (!isset($log_wrapper->field_growroom_movement) || empty($log_wrapper->field_growroom_movement->value())) {
+    return;
+  }
+
+  // If there are no "movement to" areas, bail.
+  if (empty($log_wrapper->field_growroom_movement->field_growroom_move_to)) {
+    return;
+  }
+
+  // If there are more than one assets, summarize.
+  $asset_names = '';
+  $count_assets = count($log_wrapper->field_growroom_asset);
+  if ($count_assets > 1) {
+    $asset_names .= $log_wrapper->field_growroom_asset[0]->name->value() . ' (+ ' . ($count_assets - 1) . ' ' . t('more') . ')';
+  }
+  else {
+    $asset_names .= $log_wrapper->field_growroom_asset[0]->name->value();
+  }
+
+  // If there are more than one areas, summarize.
+  $area_names = '';
+  $count_areas = count($log_wrapper->field_growroom_movement->field_growroom_move_to);
+  if ($count_areas > 1) {
+    $area_names .= $log_wrapper->field_growroom_movement->field_growroom_move_to[0]->name->value() . ' (+ ' . ($count_areas - 1) . ' ' . t('more') . ')';
+  }
+  else {
+    $area_names .= $log_wrapper->field_growroom_movement->field_growroom_move_to[0]->name->value();
+  }
+
+  // Build the log name.
+  $log->name = t('Move') . ' ' . $asset_names . ' to ' . $area_names;
+}
+
+/**
+ * Implements hook_entity_view_alter().
+ */
+function growroom_movement_entity_view_alter(&$build, $type) {
+
+  // If it's not a growroom_asset, or if the entity object is not available, bail.
+  if ($type != 'growroom_asset' || empty($build['#entity'])) {
+    return;
+  }
+
+  // Generate markup to describe the location.
+  $output = growroom_movement_asset_location_markup($build['#entity']);
+
+  // Add it to the build array.
+  $build['location'] = array(
+    '#markup' => $output,
+    '#prefix' => '<div class="location">',
+    '#suffix' => '</div>',
+    '#weight' => -100,
+  );
+}
+
+/**
+ * Implements hook_preprocess_field().
+ */
+function growroom_movement_preprocess_field(&$vars) {
+
+  // If this is the "Movement to" field, add "from" information.
+  if (!empty($vars['element']['#field_name']) && $vars['element']['#field_name'] == 'field_growroom_move_to') {
+
+    // Get the log entity from the field collection.
+    $log = $vars['element']['#object']->hostEntity();
+
+    // If a log entity isn't available, bail.
+    if (empty($log)) {
+      return;
+    }
+
+    // Get the log entity and metadata wrapper.
+    $log_wrapper = entity_metadata_wrapper('log', $log);
+
+    // Load all the assets referenced by this log.
+    $assets = $log_wrapper->field_growroom_asset->value();
+
+    // If there are no assets, bail.
+    if (empty($assets)) {
+      return;
+    }
+
+    // Subtract one from the log's timestamp, so we can find the most recent
+    // movement BEFORE this one.
+    $previous_timestamp = $log->timestamp - 1;
+
+    // Include movements that have not been marked "done".
+    $done = FALSE;
+
+    // Look up the previous location(s) of the asset(s) and build a list of
+    // unique area links.
+    $from_areas = array();
+    foreach ($assets as $asset) {
+      $areas = growroom_movement_asset_location($asset, $previous_timestamp, $done);
+      foreach ($areas as $area) {
+        if (empty($from_areas[$area->tid])) {
+          $from_areas[$area->tid] = l($area->name, 'taxonomy/term/' . $area->tid);
+        }
+      }
+    }
+
+    // If no areas were found, bail.
+    if (empty($from_areas)) {
+      return;
+    }
+
+    // Append links to the field.
+    $from_areas = implode(', ', $from_areas);
+    $vars['items'][0]['#suffix'] = ' (' . t('from !areas', array('!areas' => $from_areas)) . ')';
+  }
+}

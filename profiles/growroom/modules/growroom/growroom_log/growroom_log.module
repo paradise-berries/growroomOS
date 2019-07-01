@@ -1,0 +1,865 @@
+<?php
+/**
+ * @file
+ * Code for the Growroom Log feature.
+ */
+
+// Include Features code.
+include_once 'growroom_log.features.inc';
+
+/**
+ * Implements hook_entity_view().
+ */
+function growroom_log_entity_view($entity, $type, $view_mode, $langcode) {
+
+  // If the entity is not a log, bail.
+  if ($type != 'log') {
+    return;
+  }
+
+  // Add the log type.
+  $log_types = log_type_get_names();
+  if (!empty($log_types[$entity->type])) {
+    $entity->content['type'] = array(
+      '#markup' => '<div><strong>Log type:</strong> ' . $log_types[$entity->type] . '</div>',
+      '#weight' => -102,
+    );
+  }
+
+  // Add the log ID.
+  if (!empty($entity->id)) {
+    $entity->content['id'] = array(
+      '#markup' => '<div><strong>Log ID:</strong> ' . $entity->id . '</div>',
+      '#weight' => -101,
+    );
+  }
+}
+
+/**
+ * Implements hook_form_FORM_ID_alter().
+ */
+function growroom_log_form_log_form_alter(&$form, &$form_state, $form_id) {
+
+  // Attempt to prepopulate name and reference fields.
+  growroom_log_prepopulate_log_form_name($form);
+  growroom_log_prepopulate_log_form_references($form);
+
+  // Add help text to the timestamp field.
+  $form['timestamp']['#description'] = t('Enter the date that this event took place. If you do not know the exact date and time, you can estimate. This will determine how logs are sorted in lists and reports.');
+}
+
+/**
+ * Implements hook_entity_presave().
+ */
+function growroom_log_entity_presave($entity, $type) {
+
+  // Perform actions when a log is saved.
+  if ($type == 'log') {
+
+    // Fill in the log owner field.
+    growroom_log_populate_owner($entity);
+
+    // Populate the geometry field from areas.
+    growroom_log_populate_geometry($entity);
+  }
+}
+
+/**
+ * Implements hook_action_info().
+ */
+function growroom_log_action_info() {
+  return array(
+    'growroom_log_asset_action' => array(
+      'type' => 'growroom_asset',
+      'label' => t('Add log'),
+      'configurable' => TRUE,
+      'triggers' => array('any'),
+      'aggregate' => TRUE,
+    ),
+    'growroom_log_assign_action' => array(
+      'type' => 'log',
+      'label' => t('Assign'),
+      'configurable' => TRUE,
+      'triggers' => array('any'),
+    ),
+  );
+}
+
+/**
+ * Configuration form for growroom_log_asset_action.
+ *
+ * @param array $context
+ *   The context passed into the action form function.
+ * @param array $form_state
+ *   The form state passed into the action form function.
+ *
+ * @return array
+ *   Returns a form array.
+ */
+function growroom_log_asset_action_form(array $context, array $form_state) {
+
+  // Load a list of all available log types.
+  $log_types = log_types();
+
+  // Get information about field instances on logs.
+  $field_instances = field_info_instances('log');
+
+  // Build a list of log type options.
+  $log_type_options = array();
+  foreach ($log_types as $log_type => $info) {
+
+    // If this log type does not have field_growroom_asset, skip it.
+    if (empty($field_instances[$log_type]['field_growroom_asset'])) {
+      continue;
+    }
+
+    // Add the log type to the list of options.
+    $log_type_options[$log_type] = $info->label;
+  }
+
+  // Log type select list.
+  $form['log_type'] = array(
+    '#type' => 'select',
+    '#title' => t('Log type'),
+    '#description' => t('What type of log would you like to create?'),
+    '#options' => $log_type_options,
+    '#required' => TRUE,
+  );
+
+  // Return the form.
+  return $form;
+}
+
+/**
+ * Submit handler for growroom_log_asset_action configuration form.
+ *
+ * @param array $form
+ *   The form array.
+ * @param array $form_state
+ *   The form state array.
+ *
+ * @return array
+ *   Returns an array that will end up in the action's context.
+ */
+function growroom_log_asset_action_submit(array $form, array $form_state) {
+
+  // Start to build the context array.
+  $context = array();
+
+  // Add the log type to the context.
+  $context['log_type'] = $form_state['values']['log_type'];
+
+  // Return the context array.
+  return $context;
+}
+
+/**
+ * Action function for growroom_log_asset_action.
+ *
+ * Sends the user to a new log form with the selected assets referenced.
+ *
+ * @param array $assets
+ *   An array of asset entities.
+ * @param array $context
+ *   Array with parameters for this action.
+ */
+function growroom_log_asset_action(array $assets, $context = array()) {
+
+  // Redirect to the log creation form for the selected type, with the asset
+  // IDs passed as query parameters.
+  $options = array(
+    'query' => array(
+      'growroom_asset' => array_keys($assets),
+    ),
+  );
+  drupal_goto('log/add/' . $context['log_type'], $options);
+}
+
+/**
+ * Log assign action configuration form.
+ *
+ * @param array $context
+ *   The context passed into the action form function.
+ * @param array $form_state
+ *   The form state passed into the action form function.
+ *
+ * @return array
+ *   Returns a form array.
+ */
+function growroom_log_assign_action_form(array $context, array $form_state) {
+
+  // Generate a list of users. Only include users with growroom roles.
+  $user_options = array();
+  $roles = growroom_access_roles();
+  $query = db_query('SELECT u.uid, u.name FROM {users} u LEFT JOIN {users_roles} ur ON u.uid = ur.uid LEFT JOIN {role} r ON ur.rid = r.rid WHERE r.name IN (:roles)', array(':roles' => $roles));
+  $records = $query->fetchAll();
+  foreach ($records as $record) {
+    $user_options[$record->uid] = $record->name;
+  }
+
+  // Display a multi-select list.
+  $form['users'] = array(
+    '#type' => 'select',
+    '#title' => t('Assign log(s) to'),
+    '#description' => t('Select people to assign these logs to.'),
+    '#options' => $user_options,
+    '#multiple' => TRUE,
+  );
+
+  // Add a checkbox for appending the users instead of overwriting them.
+  $form['operation'] = array(
+    '#type' => 'radios',
+    '#title' => t('Append or Replace'),
+    '#description' => t('Select "Append" if you want to add users to the logs, but keep existing assignments. Select "Replace" if you want to replace existing assignments with the ones specified above.'),
+    '#options' => array(
+      'append' => t('Append'),
+      'replace' => t('Replace'),
+    ),
+    '#default_value' => 'append',
+  );
+
+  // Return the form.
+  return $form;
+}
+
+/**
+ * Log assign action configuration form submit.
+ *
+ * @param array $form
+ *   The form array.
+ * @param array $form_state
+ *   The form state array.
+ *
+ * @return array
+ *   Returns an array that will end up in the action's context.
+ */
+function growroom_log_assign_action_submit(array $form, array $form_state) {
+  return array(
+    'users' => $form_state['values']['users'],
+    'operation' => $form_state['values']['operation'],
+  );
+}
+
+/**
+ * Action function for growroom_log_assign_action.
+ *
+ * Assigns a log to one or more people.
+ *
+ * @param Log $log
+ *   The log entity object.
+ * @param array $context
+ *   Array with parameters for this action.
+ */
+function growroom_log_assign_action(Log $log, $context = array()) {
+
+  // If the operation is invalid, bail.
+  if (!in_array($context['operation'], array('append', 'replace'))) {
+    drupal_set_message('Invalid operation.');
+    return;
+  }
+
+  // If the operation is 'append', and there are no users, bail.
+  if ($context['operation'] == 'append' && empty($context['users'])) {
+    return;
+  }
+
+  // Create an entity wrapper for the log.
+  $log_wrapper = entity_metadata_wrapper('log', $log);
+
+  // If the owner field doesn't exist, bail.
+  if (!isset($log_wrapper->field_growroom_log_owner)) {
+    return;
+  }
+
+  // Keep track of users that are already assigned.
+  $existing_users = array();
+
+  // If we are appending, load existing owner IDs.
+  if ($context['operation'] == 'append' && !empty($log_wrapper->field_growroom_log_owner)) {
+    foreach ($log_wrapper->field_growroom_log_owner->getIterator() as $delta => $user_wrapper) {
+      $existing_users[] = $user_wrapper->uid->value();
+    }
+  }
+
+  // Or, if we are replacing, clear out the existing owner IDs.
+  elseif ($context['operation'] == 'replace') {
+    $log_wrapper->field_growroom_log_owner = array();
+  }
+
+  // Assume that we are not going to save the log.
+  $save = FALSE;
+
+  // Iterate through the users.
+  foreach ($context['users'] as $uid) {
+
+    // If the ID is empty, skip it.
+    if (empty($uid)) {
+      continue;
+    }
+
+    // Load the user.
+    $user = user_load($uid);
+
+    // if the user didn't load, skip it.
+    if (empty($user)) {
+      continue;
+    }
+
+    // If the user is already referenced in the log, skip it.
+    if (in_array($user->uid, $existing_users)) {
+      continue;
+    }
+
+    // Add the user ID to the array of existing users so we don't accidentally
+    // add the same one more than once. Shouldn't happen, but be defensive.
+    $existing_users[] = $user->uid;
+
+    // Add the user to the log's owner field.
+    $log_wrapper->field_growroom_log_owner[] = $user;
+
+    // We will save the log.
+    $save = TRUE;
+  }
+
+  // If we should save the log, then save it.
+  if ($save) {
+    $log_wrapper->save();
+  }
+}
+
+/**
+ * Helper function for creating log categories. Terms will only be added if
+ * they don't already exist.
+ *
+ * @param array $categories
+ *   An array of strings that will be added as terms to the Growroom Log Categories
+ *   vocabulary.
+ */
+function growroom_log_categories_create($categories) {
+
+  // If the categories is not an array, bail.
+  if (!is_array($categories)) {
+    return;
+  }
+
+  // Define the vocabulary machine name.
+  $vocabulary_machine_name = 'growroom_log_categories';
+
+  // Load the vocabulary.
+  $vocabulary = taxonomy_vocabulary_machine_name_load($vocabulary_machine_name);
+
+  // If the vocabulary doesn't exist, bail.
+  if (empty($vocabulary->vid)) {
+    return;
+  }
+
+  // Iterate through the categories.
+  foreach ($categories as $category) {
+
+    // Translate the category name.
+    $term_name = t($category);
+
+    // Create new category term, if one doesn't already exist.
+    growroom_term($term_name, $vocabulary_machine_name);
+  }
+
+  // Always reset the categories to alphabetical order.
+  /**
+   * @see taxonomy_vocabulary_confirm_reset_alphabetical_submit()
+   */
+  db_update('taxonomy_term_data')
+    ->fields(array('weight' => 0))
+    ->condition('vid', $vocabulary->vid)
+    ->execute();
+}
+
+/**
+ * Create log categories on behalf of all modules that provide them.
+ */
+function growroom_log_categories_create_all() {
+  $categories = module_invoke_all('growroom_log_categories');
+  if (!empty($categories)) {
+    growroom_log_categories_create($categories);
+  }
+}
+
+/**
+ * Helper function for populating a log's owner field.
+ *
+ * @param Entity $entity
+ *   The entity to act upon.
+ * @param $account
+ *   Optionally the user account to assign the log to.
+ *
+ * @see growroom_log_entity_movement_presave().
+ */
+function growroom_log_populate_owner($entity, $account = NULL) {
+
+  // If the log already has an owner, bail.
+  if (!empty($entity->field_growroom_log_owner[LANGUAGE_NONE][0]['target_id'])) {
+    return;
+  }
+
+  // Get the log owner ID, either from the $account passed in, or from the
+  // currently authenticated user.
+  if (!empty($account->uid)) {
+    $uid = $account->uid;
+  }
+  else {
+    global $user;
+    $uid = $user->uid;
+  }
+
+  // If we have a user id, assign it as the log owner.
+  if (!empty($uid)) {
+    $entity->field_growroom_log_owner[LANGUAGE_NONE][] = array('target_id' => $uid);
+  }
+}
+
+/**
+ * Helper function for populating a log's geometry from an area reference field.
+ *
+ * @param Entity $entity
+ *   The entity to act upon.
+ *
+ * @see growroom_log_entity_movement_presave().
+ */
+function growroom_log_populate_geometry($entity) {
+
+  // Define the area field name.
+  $area_field = 'field_growroom_area';
+
+  // If the log doesn't have an area reference field, bail.
+  if (!isset($entity->{$area_field})) {
+    return;
+  }
+
+  // If a geometry is already defined, bail.
+  if (!empty($entity->field_growroom_geofield[LANGUAGE_NONE][0]['geom'])) {
+    return;
+  }
+
+  // Load the area(s) referenced by the area reference field.
+  $area_ids = array();
+  if (!empty($entity->{$area_field}[LANGUAGE_NONE])) {
+    foreach ($entity->{$area_field}[LANGUAGE_NONE] as $area_reference) {
+      if (!empty($area_reference['tid'])) {
+        $area_ids[] = $area_reference['tid'];
+      }
+    }
+  }
+
+  // Extract geometries from the areas.
+  $geoms = growroom_area_extract_geoms($area_ids);
+
+  // Populate the geofield.
+  growroom_map_geofield_populate($entity, $geoms);
+}
+
+/**
+ * Helper function for populating the name field in log forms.
+ *
+ * @param array $form
+ *   The form array to modify, passed by reference.
+ */
+function growroom_log_prepopulate_log_form_name(&$form) {
+
+  // If the GET parameter isn't set, bail.
+  $params = drupal_get_query_parameters();
+  if (empty($params['name'])) {
+    return;
+  }
+
+  // If the log form name field already has a default value, bail.
+  if (!empty($form['name']['#default_value'])) {
+    return;
+  }
+
+  // Set the name in the form.
+  $form['name']['#default_value'] = $params['name'];
+}
+
+/**
+ * Implements hook_growroom_log_prepopulate_reference_fields().
+ */
+function growroom_log_growroom_log_prepopulate_reference_fields($log_type) {
+
+  // Define the fields that will be prepopulated in log forms.
+  return array(
+    'field_growroom_asset' => array(
+      'entity_type' => 'growroom_asset',
+      'url_param' => 'growroom_asset',
+    ),
+    'field_growroom_area' => array(
+      'entity_type' => 'taxonomy_term',
+      'url_param' => 'growroom_area',
+    ),
+    'field_growroom_log_category' => array(
+      'entity_type' => 'taxonomy_term',
+      'lookup' => TRUE,
+      'vocabulary' => 'growroom_log_categories',
+      'url_param' => 'category',
+    ),
+    'field_growroom_log_owner' => array(
+      'entity_type' => 'user',
+    ),
+  );
+}
+
+/**
+ * Helper function for populating entity reference fields in log forms.
+ *
+ * @param array $form
+ *   The form array to modify, passed by reference.
+ */
+function growroom_log_prepopulate_log_form_references(&$form) {
+
+  // Get the log type from the form. Bail if none.
+  if (empty($form['#bundle'])) {
+    return;
+  }
+  $log_type = $form['#bundle'];
+
+  // Ask modules for information about fields that should be prepopulated for
+  // this log type.
+  $fields = module_invoke_all('growroom_log_prepopulate_reference_fields', $log_type);
+
+  // Allow modules to alter the field information.
+  drupal_alter('growroom_log_prepopulate_reference_fields', $fields, $log_type);
+
+  // Populate the fields.
+  foreach ($fields as $field => $info) {
+
+    // Start with an empty array of IDs.
+    $ids = array();
+
+    // If the field does not exist on the log, skip it.
+    if (!isset($form[$field])) {
+      continue;
+    }
+
+    // If a URL param is available, get a list of entity IDs from it.
+    if (!empty($info['url_param'])) {
+
+      // Get query parameters.
+      $params = drupal_get_query_parameters();
+
+      // If the URL param is set, pull the IDs out.
+      if (!empty($params[$info['url_param']])) {
+        $ids = $params[$info['url_param']];
+      }
+    }
+
+    // Or, if the entity type is 'user', load the ID from the current user.
+    elseif ($info['entity_type'] == 'user') {
+      global $user;
+      if (!empty($user->uid)) {
+        $ids[] = $user->uid;
+      }
+    }
+
+    // Ensure that the IDs are an array.
+    if (!is_array($ids)) {
+      $ids = array($ids);
+    }
+
+    // Allow modules to add log categories.
+    if ($field == 'field_growroom_log_category' && !empty($form['#entity'])) {
+      $categories = module_invoke_all('growroom_log_categories_populate', $form['#entity']);
+      if (!empty($categories)) {
+        foreach ($categories as $category) {
+          if (is_string($category)) {
+            $ids[] = t($category);
+          }
+        }
+      }
+    }
+
+    // If there are no IDs, skip.
+    if (empty($ids)) {
+      continue;
+    }
+
+    // Look up taxonomy term IDs, if necessary.
+    if ($info['entity_type'] == 'taxonomy_term' && !empty($info['lookup']) && !empty($info['vocabulary'])) {
+      $term_names = $ids;
+      $ids = array();
+      foreach ($term_names as $name) {
+        $terms = taxonomy_get_term_by_name($name, $info['vocabulary']);
+        $term = reset($terms);
+        if (!empty($term->tid)) {
+          $ids[] = $term->tid;
+        }
+      }
+    }
+
+    // Prepopulate with the growroom_fields helper function.
+    growroom_fields_prepopulate_entityreference($form, $info['entity_type'], $field, $ids);
+  }
+}
+
+/**
+ * Helper function for building a select query of logs related to assets.
+ *
+ * This builds on top of the more general growroom_log_query() function.
+ *
+ * @see growroom_log_query()
+ *
+ * @param int|string $asset_id
+ *   The asset id to search for. This can either be a specific id, or a field
+ *   alias string from another query (ie: 'mytable.assetid'). For an example
+ *   of field alias string usage, see the Views field handler code in
+ *   growroom_movement_handler_relationship_location::query(). If this is omitted,
+ *   the asset reference table will still be joined in, but no further
+ *   filtering will be done.
+ * @param int $time
+ *   Unix timestamp limiter. Only logs before this time will be included.
+ *   Defaults to the current time. Set to 0 to load the absolute last.
+ * @param bool $done
+ *   Whether or not to only show logs that are marked as "done". Defaults to
+ *   TRUE.
+ * @param string $type
+ *   The log type to filter by. If empty, no filtering will be applied.
+ * @param bool $single
+ *   Whether or not to limit the query to a single result. Defaults to TRUE.
+ *
+ * @return \SelectQuery
+ *   Returns a SelectQuery object.
+ */
+function growroom_log_asset_query($asset_id = NULL, $time = REQUEST_TIME, $done = TRUE, $type = NULL, $single = TRUE) {
+
+  /**
+   * Please read the comments in growroom_log_query() to understand how this works,
+   * and to be aware of the limitations and responsibilities we have in this
+   * function with regard to sanitizing query inputs.
+   */
+
+  // Start with a query from the growroom_log_query() helper function.
+  $query = growroom_log_query($time, $done, $type, $single);
+
+  // Ensure $asset_id is valid, because it will be used directly in the query
+  // string. This is defensive code. See note about growroom_log_query() above.
+  if (!is_numeric($asset_id) || $asset_id < 0) {
+    $asset_id = db_escape_field($asset_id);
+  }
+
+  // Join in asset reference field. Use an inner join to exclude logs that do
+  // not have any asset references.
+  $query->innerJoin('field_data_field_growroom_asset', 'ss_fdffa', "ss_fdffa.entity_type = 'log' AND ss_fdffa.entity_id = ss_log.id AND ss_fdffa.deleted = 0");
+
+  // If an asset ID is specified, only include logs that reference it.
+  if (!empty($asset_id)) {
+    $query->where('ss_fdffa.field_growroom_asset_target_id = ' . $asset_id);
+  }
+
+  // Return the query object.
+  return $query;
+}
+
+/**
+ * Helper function for building a select query of logs.
+ *
+ * This function is used by other modules to build queries and Views handlers
+ * that need to find the most recent log in a specific context.
+ *
+ * Modules can use this to generate a base query, and then add their own
+ * modifications on top of that.
+ *
+ * @param int $time
+ *   Unix timestamp limiter. Only logs before this time will be included.
+ *   Defaults to the current time. Set to 0 to load the absolute last.
+ * @param bool $done
+ *   Whether or not to only show logs that are marked as "done". Defaults to
+ *   TRUE.
+ * @param string $type
+ *   The log type to filter by. If empty, no filtering will be applied.
+ * @param bool $single
+ *   Whether or not to limit the query to a single result. Defaults to TRUE.
+ *
+ * @return \SelectQuery
+ *   Returns a SelectQuery object.
+ */
+function growroom_log_query($time = REQUEST_TIME, $done = TRUE, $type = NULL, $single = TRUE) {
+
+  /**
+   * This query may be used as a sub-query join in a Views handler via the
+   * views_join_subquery class (for an example see:
+   * growroom_movement_handler_relationship_location). When a sub-query is added
+   * via views_join_subquery, it is not possible to use query arguments in the
+   * sub-query itself. So we cannot use the query::condition() method, or any
+   * other methods that take query arguments separately and perform sanitation
+   * on them. Thus, it is the responsibility of this function to sanitize any
+   * inputs and use them directly in the SQL.
+   *
+   * We use the "ss_" prefix on aliases to avoid potential name conflicts when
+   * this query is used as a sub-select inside another query.
+   */
+
+  // Ensure $time is valid, because it may be used directly in the query
+  // string. This is defensive code. See note about views_join_subquery above.
+  if (!is_numeric($time) || $time < 0) {
+    $time = REQUEST_TIME;
+  }
+
+  // Ensure that $type is a valid strings, because we use it directly in the
+  // query's WHERE statements below. This is defensive code. See note about
+  // views_join_subquery in growroom_log_query().
+  if (!is_null($type)) {
+    $type = db_escape_field($type);
+  }
+
+  // Build a query to find a log that references an asset.
+  $query = db_select('log', 'ss_log');
+
+  // If $type is not empty, filter to logs of that type.
+  if (!empty($type)) {
+    $query->where("ss_log.type = '" . $type . "'");
+  }
+
+  // If $time is not zero, limit to only logs before it. This allows the
+  // absolute last log to be found by setting $time to zero.
+  if ($time !== 0) {
+    $query->where('ss_log.timestamp <= ' . $time);
+  }
+
+  // If only "done" movement logs should be included, add a filter.
+  if ($done) {
+    $query->where('ss_log.done = 1');
+  }
+
+  // Order by timestamp and then log id, descending.
+  $query->orderBy('ss_log.timestamp', 'DESC');
+  $query->orderBy('ss_log.id', 'DESC');
+
+  // Limit the query to a single result (the first one), if desired.
+  if (!empty($single)) {
+    $query->range(0, 1);
+  }
+
+  // Return the query object.
+  return $query;
+}
+
+/**
+ * Helper function for creating a growroom log.
+ *
+ * @param string $type
+ *   The log type machine name.
+ * @param string $name
+ *   Optionally specify a name for the new log.
+ * @param int $timestamp
+ *   The timestamp of the log (defaults to REQUEST_TIME).
+ * @param bool $done
+ *   Boolean indicating whether or not the log is done.
+ * @param array $assets
+ *   An array of assets to reference in the log.
+ * @param string $notes
+ *   Notes to add to the log.
+ * @param array $categories
+ *   An array of categories to add to the log.
+ *
+ * @return \Log
+ *   Returns a saved log entity.
+ */
+function growroom_log_create($type, $name = '', $timestamp = REQUEST_TIME, $done = TRUE, $assets = array(), $notes = '', $categories = array()) {
+
+  // Create a new log entity.
+  $log = entity_create('log', array('type' => $type));
+
+  // If a log name is specified, set it.
+  if (!empty($name)) {
+    $log->name = $name;
+  }
+
+  // Set the timestamp.
+  $log->timestamp = $timestamp;
+
+  // Set the log's done status.
+  if (!empty($done)) {
+    $log->done = TRUE;
+  }
+  else {
+    $log->done = FALSE;
+  }
+
+  // Add asset references.
+  if (!empty($assets)) {
+    foreach ($assets as $asset) {
+      if (!empty($asset->id)) {
+        $log->field_growroom_asset[LANGUAGE_NONE][] = array(
+          'target_id' => $asset->id,
+        );
+      }
+    }
+  }
+
+  // Add the notes.
+  if (!empty($notes)) {
+    $log->field_growroom_notes[LANGUAGE_NONE][0]['value'] = $notes;
+    $log->field_growroom_notes[LANGUAGE_NONE][0]['format'] = 'growroom_format';
+  }
+
+  // Add the categories.
+  if (!empty($categories)) {
+    foreach ($categories as $category) {
+
+      // Create/load the category term.
+      $term = growroom_term($category, 'growroom_log_categories');
+
+      // Add the category to the log.
+      $log->field_growroom_log_category[LANGUAGE_NONE][] = array(
+        'tid' => $term->tid,
+      );
+    }
+  }
+
+  // Save the log.
+  log_save($log);
+
+  // Set a message.
+  $label = entity_label('log', $log);
+  $uri = entity_uri('log', $log);
+  drupal_set_message('Log created: ' . l($label, $uri['path']));
+
+  // Return the log.
+  return $log;
+}
+
+/**
+ * Helper function for generating a summary of entity labels for use in a
+ * log name.
+ *
+ * @param string $entity_type
+ *   The entity type.
+ * @param Entity|array $entities
+ *   An entity or array of entities.
+ * @param int $cutoff
+ *   The number of entity labels to include before summarizing the rest.
+ *   If the number of entities exceeds the cutoff, only the first entity's
+ *   label will be included, and the rest will be summarized as "(+ X more)".
+ *   If the number of entities is less than or equal to the cutoff, or if the
+ *   cutoff is 0, all entity labels will be included.
+ *
+ * @return string
+ *   Returns a string summarizing the assets.
+ */
+function growroom_log_entity_label_summary($entity_type, $entities, $cutoff = 3) {
+  $labels = array();
+  if (!is_array($entities)) {
+    $entities = array($entities);
+  }
+  foreach ($entities as $entity) {
+    $label = entity_label($entity_type, $entity);
+    if (!empty($label)) {
+      $labels[] = $label;
+    }
+  }
+  $count = count($labels);
+  if ($cutoff == 0 || count($labels) <= $cutoff) {
+    $output = implode($labels, ', ');
+  }
+  else {
+    $output = $labels[0] . ' (+' . ($count - 1) . ' ' . t('more') . ')';
+  }
+  return $output;
+}

@@ -1,0 +1,7 @@
+<?php
+/**
+ * @file
+ * Code for the Growroom Calendar feature.
+ */
+
+include_once 'growroom_calendar.features.inc';

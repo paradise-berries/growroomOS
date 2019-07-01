@@ -1,0 +1,275 @@
+<?php
+/**
+ * @file
+ * Growroom area import module.
+ */
+
+/**
+ * Implements hook_permission().
+ */
+function growroom_area_import_permission() {
+  return array(
+    'use growroom area importer' => array(
+      'title' => t('Use growroom area importer tool'),
+      'description' => t('Use the growroom area importer tool.'),
+    ),
+  );
+}
+
+/**
+ * Implements hook_growroom_access_perms().
+ */
+function growroom_area_import_growroom_access_perms($role) {
+
+  // Grant area generator access to Growroom Managers.
+  if ($role == 'Growroom Manager') {
+    return array('use growroom area importer');
+  }
+  else {
+    return array();
+  }
+}
+
+/**
+ * Implements hook_menu().
+ */
+function growroom_area_import_menu() {
+
+  // Area generator form.
+  $items['growroom/areas/import'] = array(
+    'title' => 'Area importer',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('growroom_area_import_form'),
+    'access arguments' => array('use growroom area importer'),
+    'type' => MENU_LOCAL_TASK,
+  );
+
+  return $items;
+}
+
+/**
+ * Area import form.
+ */
+function growroom_area_import_form($form, &$form_state) {
+
+  // Set the page title.
+  drupal_set_title('Area importer');
+
+  // Create a fieldset for input.
+  $form['input'] = array(
+    '#type' => 'fieldset',
+    '#title' => t('Input'),
+  );
+
+  // KML text area.
+  $form['input']['kml'] = array(
+    '#type' => 'textarea',
+    '#title' => t('KML'),
+    '#description' => t('Paste the contents of your KML file here and click "Parse".'),
+    '#required' => TRUE,
+  );
+ // Default area type.
+ // Default to 'field' if available. Otherwise use 'other' because it's the
+ // only one we can depend on.
+ $area_type_options = growroom_area_type_options();
+ $default_area_type = 'other';
+ if (array_key_exists('field', $area_type_options)) {
+   $default_area_type = 'field';
+ }
+ $form['input']['area_type'] = array(
+   '#type' => 'select',
+   '#title' => t('Default area type'),
+   '#description' => t('Specify the default area type for the ares in this KML. This can be overridden below on a per-area basis before creating the areas.'),
+   '#options' => $area_type_options,
+   '#default_value' => $default_area_type,
+ );
+  // Parse button.
+  $form['input']['parse'] = array(
+    '#type' => 'submit',
+    '#value' => t('Parse'),
+    '#submit' => array('growroom_area_import_form_parse'),
+    '#ajax' => array(
+      'callback' => 'growroom_area_import_form_ajax',
+      'wrapper' => 'output',
+    ),
+  );
+
+  // Create a wrapper for the output.
+  $form['output'] = array(
+    '#tree' => TRUE,
+    '#prefix' => '<div id="output">',
+    '#suffix' => '</div>',
+  );
+
+  // If a file has not been uploaded, return the form.
+  if (empty($form_state['values']['kml'])) {
+    return $form;
+  }
+
+  // Parse the KML into an array of geometries.
+  $geometries = growroom_map_kml_parse_geometries($form_state['values']['kml']);
+
+  // Make the output wrapper into a fieldset.
+  $form['output']['#type'] = 'fieldset';
+  $form['output']['#title'] = t('Output');
+  $form['output']['#description'] = t('Total geometries: @number', array('@number' => count($geometries)));
+
+  // Iterate through the geometries and add form fields for each.
+  foreach ($geometries as $i => $geometry) {
+
+    // Create a simple fieldset for the geometry.
+    $form['output'][$i] = array(
+      '#type' => 'fieldset',
+      '#title' => t('Geometry') . ' ' . ($i + 1),
+    );
+
+    // Get the placemark name and put it in a text field.
+    $form['output'][$i]['name'] = array(
+      '#type' => 'textfield',
+      '#title' => t('Name'),
+      '#default_value' => $geometry['name'],
+    );
+
+    // Area type select.
+    $form['output'][$i]['type'] = array(
+      '#type' => 'select',
+      '#title' => t('Area type'),
+      '#options' => $area_type_options,
+      '#default_value' => $form_state['values']['area_type'],
+    );
+
+    // Get the placemark description and put it in a text field.
+    $form['output'][$i]['description'] = array(
+      '#type' => 'textarea',
+      '#title' => t('Description'),
+      '#default_value' => $geometry['description'],
+    );
+
+    // Add a text area for the geometry data.
+    $form['output'][$i]['geometry'] = array(
+      '#type' => 'textarea',
+      '#title' => t('Geometry'),
+      '#default_value' => $geometry['wkt'],
+    );
+
+    // Checkbox for creating the area.
+    $form['output'][$i]['confirm'] = array(
+      '#type' => 'checkbox',
+      '#title' => t('Create this area'),
+      '#description' => t('Uncheck this if you do not want to create this area in growroomOS.'),
+      '#default_value' => TRUE,
+    );
+  }
+
+  // Parent area name (for optionally creating a new parent area for all the
+  // newly created areas).
+  $form['output']['parent'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Optional parent area'),
+    '#description' => t('If a name is entered here, it will be used to create a new parent area, and all geometries above will be added as child areas of it. This is helpful if you are importing a lot of areas, and want to keep them all organized upon import.')
+  );
+
+  // Submit button.
+  $form['output']['submit'] = array(
+    '#type' => 'submit',
+    '#value' => t('Create areas'),
+    '#validate' => array('growroom_area_import_form_create_validate'),
+    '#submit' => array('growroom_area_import_form_create_submit'),
+  );
+
+  return $form;
+}
+
+/**
+ * Area importer form ajax callback.
+ */
+function growroom_area_import_form_ajax($form, &$form_state) {
+  return $form['output'];
+}
+
+/**
+ * Area importer parse button submit.
+ */
+function growroom_area_import_form_parse(&$form, &$form_state) {
+  $form_state['input'] = array();
+  $form_state['rebuild'] = TRUE;
+}
+
+/**
+ * Area importer form validation.
+ */
+function growroom_area_import_form_create_validate(&$form, &$form_state) {
+
+  // Iterate through the submitted values.
+  foreach ($form_state['values']['output'] as $key => $values) {
+
+    // If the confirmation checkbox is not checked, skip.
+    if (empty($values['confirm'])) {
+      continue;
+    }
+
+    // Prevent empty values.
+    $fields = array(
+      'name',
+      'type',
+      'geometry',
+    );
+    foreach ($fields as $field) {
+      if (empty($values[$field])) {
+        form_set_error('output][' . $key . '][' . $field, t('The %field field is required on geometry @num', array('%field' => $field, '@num' => $key + 1)));
+      }
+    }
+
+    // Validate the geometry using the geofield function.
+    $error = geofield_validate_geom(array('geom' => $values['geometry']));
+    if (!empty($error)) {
+      form_set_error('output][' . $key . '][geometry', t('Geometry @num is invalid.', array('@num' => $key + 1)));
+    }
+  }
+}
+
+/**
+ * Area importer form submit.
+ */
+function growroom_area_import_form_create_submit(&$form, &$form_state) {
+
+  // If a parent area name was provided, load/create it and remember its ID.
+  $parent_tid = 0;
+  if (!empty($form_state['values']['output']['parent'])) {
+    $parent_area = growroom_term($form_state['values']['output']['parent'], 'growroom_areas');
+    if (!empty($parent_area->tid)) {
+      $parent_tid = $parent_area->tid;
+    }
+
+    // Display a message with a link to the new area.
+    $area_label = entity_label('taxonomy_term', $parent_area);
+    $area_uri = entity_uri('taxonomy_term', $parent_area);
+    drupal_set_message(t('Area created: <a href="@path">@label</a>', array('@path' => url($area_uri['path']), '@label' => $area_label)));
+  }
+
+  // Iterate through the submitted values.
+  foreach ($form_state['values']['output'] as $values) {
+
+    // If the confirmation checkbox is not checked, skip.
+    if (empty($values['confirm'])) {
+      continue;
+    }
+
+    // Create a new area term object.
+    $area = growroom_term($values['name'], 'growroom_areas', TRUE, FALSE);
+
+    // Set extra fields
+    $area->description = $values['description'];
+    $area->parent = $parent_tid;
+    $area->field_growroom_area_type[LANGUAGE_NONE][0]['value'] = $values['type'];
+    $area->field_growroom_geofield[LANGUAGE_NONE][0]['geom'] = $values['geometry'];
+
+    // Save the area term.
+    taxonomy_term_save($area);
+
+    // Display a message with a link to the new area.
+    $area_label = entity_label('taxonomy_term', $area);
+    $area_uri = entity_uri('taxonomy_term', $area);
+    drupal_set_message(t('Area created: <a href="@path">@label</a>', array('@path' => url($area_uri['path']), '@label' => $area_label)));
+  }
+}

@@ -1,0 +1,11 @@
+name = Growroom Plan Considerations
+description = Provides features for managing considerations within a growroom plan.
+core = 7.x
+package = growroomOS (beta)
+dependencies[] = growroom_plan
+
+; Information added by Drupal.org packaging script on 2018-11-14
+version = "7.x-0.01 beta"
+core = "7.x"
+project = "growroom"
+datestamp = "1542218112"

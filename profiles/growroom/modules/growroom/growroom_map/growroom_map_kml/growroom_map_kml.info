@@ -1,0 +1,12 @@
+name = Growroom Map KML
+description = Provides KML features for growroom maps.
+core = 7.x
+package = growroomOS
+dependencies[] = growroom_map
+dependencies[] = geophp
+
+; Information added by Drupal.org packaging script on 2018-11-14
+version = "7.x-0.01 beta"
+core = "7.x"
+project = "growroom"
+datestamp = "1542218112"

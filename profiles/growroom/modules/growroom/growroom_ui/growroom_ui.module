@@ -1,0 +1,259 @@
+<?php
+
+/**
+ * @file
+ * Growroom UI module code.
+ */
+
+/**
+ * Implements hook_hook_info().
+ */
+function growroom_ui_hook_info() {
+  $hooks['growroom_ui_entities'] = array(
+    'group' => 'growroom_ui',
+  );
+  $hooks['growroom_ui_entity_view_groups'] = array(
+    'group' => 'growroom_ui',
+  );
+  $hooks['growroom_ui_entity_views'] = array(
+    'group' => 'growroom_ui',
+  );
+  $hooks['growroom_ui_actions'] = array(
+    'group' => 'growroom_ui',
+  );
+  $hooks['growroom_area_link_alter'] = array(
+    'group' => 'growroom_area',
+  );
+  return $hooks;
+}
+
+/**
+ * Implements hook_menu_alter().
+ */
+function growroom_ui_menu_alter(&$items) {
+
+  // This function adds links to "All assets", "All logs", and "All plans" in
+  // the Growroom menu. In order to do that, we need to make sure that this hook
+  // runs after the Views module's implementation of hook_menu_alter(). That is
+  // accomplished via hook_module_implements_alter() below.
+
+  // Replicate the growroom/assets menu item to growroom/assets/all.
+  if (!empty($items['growroom/assets'])) {
+    $items['growroom/assets/all'] = $items['growroom/assets'];
+    $items['growroom/assets/all']['title'] = t('All assets');
+    $items['growroom/assets/all']['weight'] = -100;
+  }
+
+  // Replicate the growroom/logs menu item to growroom/logs/all.
+  if (!empty($items['growroom/logs'])) {
+    $items['growroom/logs/all'] = $items['growroom/logs'];
+    $items['growroom/logs/all']['title'] = t('All logs');
+    $items['growroom/logs/all']['weight'] = -100;
+  }
+
+  // Replicate the growroom/plans menu item to growroom/plans/all.
+  if (!empty($items['growroom/plans'])) {
+    $items['growroom/plans/all'] = $items['growroom/plans'];
+    $items['growroom/plans/all']['title'] = t('All plans');
+    $items['growroom/plans/all']['weight'] = -100;
+  }
+}
+
+/**
+ * Implements hook_module_implements_alter().
+ */
+function growroom_ui_module_implements_alter(&$implementations, $hook) {
+
+  // Ensure that this module's hook_menu_alter() runs last.
+  // This is necessary for hook_menu_alter() above.
+  if ($hook == 'menu_alter') {
+    $group = $implementations['growroom_ui'];
+    unset($implementations['growroom_ui']);
+    $implementations['growroom_ui'] = $group;
+  }
+}
+
+/**
+ * Implements hook_entity_view().
+ */
+function growroom_ui_entity_view($entity, $type, $view_mode, $langcode) {
+
+  // If the view mode is not 'full', bail.
+  if ($view_mode != 'full') {
+    return;
+  }
+
+  // We are only concerned with asset, plan, log, and term entities.
+  $entity_types = array(
+    'growroom_asset',
+    'growroom_plan',
+    'log',
+    'taxonomy_term',
+  );
+  if (!in_array($type, $entity_types)) {
+    return;
+  }
+
+  // Determine the bundle based on the type.
+  switch ($type) {
+    case 'growroom_asset':
+    case 'growroom_plan':
+    case 'log':
+      $bundle = $entity->type;
+      break;
+    case 'taxonomy_term':
+      $bundle = $entity->vocabulary_machine_name;
+      break;
+  }
+
+  // Set the entity breadcrumb.
+  module_load_include('inc', 'growroom_ui', 'growroom_ui.breadcrumb');
+  growroom_ui_entity_set_breadcrumb($type, $bundle);
+
+  // Add Views to the entity.
+  module_load_include('inc', 'growroom_ui', 'growroom_ui.entity_views');
+  $views = growroom_ui_entity_views($type, $bundle, $entity);
+  if (!empty($views)) {
+    $entity->content['views'] = $views;
+    $entity->content['views']['#weight'] = 100;
+  }
+}
+
+/**
+ * Implements hook_menu_breadcrumb_alter().
+ */
+function growroom_ui_menu_breadcrumb_alter(&$active_trail, $item) {
+
+  // Use helper function to alter the breadcrumb.
+  module_load_include('inc', 'growroom_ui', 'growroom_ui.breadcrumb');
+  _growroom_ui_menu_breadcrumb_alter($active_trail, $item);
+}
+
+/**
+ * Implements hook_menu_local_tasks_alter().
+ */
+function growroom_ui_menu_local_tasks_alter(&$data, $router_item, $root_path) {
+
+  // Use helper function to add growroomOS action links.
+  module_load_include('inc', 'growroom_ui', 'growroom_ui.action_links');
+  _growroom_ui_menu_local_tasks_alter($data, $router_item, $root_path);
+}
+
+/**
+ * Implements hook_views_post_render().
+ */
+function growroom_ui_views_post_render(&$view, &$output, &$cache) {
+
+  // Use helper function to add asset cluster maps to Views.
+  module_load_include('inc', 'growroom_ui', 'growroom_ui.views');
+  _growroom_ui_views_post_render($view, $output, $cache);
+}
+
+/**
+ * Implements hook_entityreference_view_widget_views_arguments_alter().
+ */
+function growroom_ui_entityreference_view_widget_views_arguments_alter(&$arguments, $form_state, $view) {
+
+  // Use helper function to alter arguments.
+  module_load_include('inc', 'growroom_ui', 'growroom_ui.views');
+  _growroom_ui_entityreference_view_widget_views_arguments_alter($arguments, $form_state, $view);
+}
+
+/**
+ * Load growroomOS entity UI information.
+ *
+ * @param string $type
+ *   Optionally specify the entity type.
+ * @param string $bundle
+ *   Optionally specify the entity bundle.
+ *
+ * @return array
+ *   Returns an array of entity UI information.
+ */
+function growroom_ui_entities($type = '', $bundle = '') {
+
+  // Ask modules for entity UI information and static cache the results.
+  $entity_info = &drupal_static(__FUNCTION__);
+  if (!isset($entity_info)) {
+    $entity_info = module_invoke_all('growroom_ui_entities');
+  }
+
+  // If a type and bundle are specified, return specific info.
+  if (!empty($type) && !empty($bundle)) {
+    $bundle_info = array();
+    if (!empty($entity_info[$type][$bundle])) {
+      $bundle_info = $entity_info[$type][$bundle];
+    }
+    return $bundle_info;
+  }
+
+  // Return the entity UI information.
+  return $entity_info;
+}
+
+/**
+ * Helper function for getting the path to a View's page display.
+ *
+ * @param string $view_name
+ *   The machine name of the View.
+ * @param string $display
+ *   The machine name of the page display (defaults to "page").
+ *
+ * @return string
+ *   Returns the path to a View's page display.
+ */
+function growroom_ui_view_page_path($view_name, $display = 'page') {
+
+  // Load the View.
+  $view = views_get_view($view_name);
+
+  // If the page display exists and has a path, return it.
+  if (!empty($view->display[$display]->display_options['path'])) {
+    return $view->display[$display]->display_options['path'];
+  }
+
+  // Otherwise, return an empty string.
+  return '';
+}
+
+/**
+ * Encapsulates logic for figuring out where the area ID argument is in a View.
+ *
+ * Views of assets should always have an area ID as their first contextual
+ * filter.
+ *
+ * Views of logs are a bit more complicated. Most logs apply to assets, so they
+ * have an asset ID contextual filter first, and an area ID contextual filter
+ * second. However, some logs do not apply to assets, so the first contextual
+ * filter is the area ID.
+ *
+ * This function will use information provided by hook_growroom_ui_entities() to
+ * determine the position of the area ID argument. In general, it will return
+ * 1 (the first argument position). If the entity type is 'log', and the log
+ * type does not apply to assets, then it will return 2 (second argument).
+ *
+ * @param $type
+ *   The entity type.
+ * @param $bundle
+ *   The entity bundle.
+ *
+ * @return int
+ *   Returns the position of the area ID argument as an integer.
+ */
+function growroom_ui_views_area_argument_position($type, $bundle) {
+
+  // Load entity UI information.
+  $ui_info = growroom_ui_entities($type, $bundle);
+
+  // Default the area ID argument position to 1.
+  $arg = 1;
+
+  // If this is a log entity that applies to assets, the argument position
+  // should be 2.
+  if ($type == 'log' && (empty($ui_info['growroom_asset']) || $ui_info['growroom_asset'] != 'none')) {
+    $arg = 2;
+  }
+
+  // Return the argument position.
+  return $arg;
+}

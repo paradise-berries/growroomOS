@@ -1,0 +1,11 @@
+name = Growroom Area Types
+description = Provides some default area types.
+core = 7.x
+package = growroomOS
+dependencies[] = growroom_area
+
+; Information added by Drupal.org packaging script on 2018-12-12
+version = "7.x-0.01 beta+21-dev"
+core = "7.x"
+project = "growroom"
+datestamp = "1544625189"

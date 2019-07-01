@@ -1,0 +1,119 @@
+<?php
+/**
+ * @file
+ * growroom_movement.features.field_instance.inc
+ */
+
+/**
+ * Implements hook_field_default_field_instances().
+ */
+function growroom_movement_field_default_field_instances() {
+  $field_instances = array();
+
+  // Exported field_instance:
+  // 'field_collection_item-field_growroom_movement-field_growroom_geofield'.
+  $field_instances['field_collection_item-field_growroom_movement-field_growroom_geofield'] = array(
+    'bundle' => 'field_growroom_movement',
+    'default_value' => NULL,
+    'deleted' => 0,
+    'description' => 'This field allows you to optionally specify a more precise geometry for the new location of assets. If you leave it blank, the geometry will be copied from the areas that assets are moving to (if available).',
+    'display' => array(
+      'default' => array(
+        'label' => 'above',
+        'module' => 'openlayers_geofield',
+        'settings' => array(
+          'data' => 'full',
+          'map_layer_preset' => 'growroom_map_geofield_formatter:openlayers_geofield_layer_formatter',
+        ),
+        'type' => 'openlayers_geofield',
+        'weight' => 2,
+      ),
+    ),
+    'entity_type' => 'field_collection_item',
+    'field_name' => 'field_growroom_geofield',
+    'label' => 'Movement geometry',
+    'required' => 0,
+    'settings' => array(
+      'user_register_form' => FALSE,
+    ),
+    'widget' => array(
+      'active' => 1,
+      'module' => 'openlayers_geofield',
+      'settings' => array(
+        'allow_edit' => 1,
+        'data_storage' => 'collection',
+        'delta_handling' => 'default',
+        'feature_types' => array(
+          'path' => 'path',
+          'point' => 'point',
+          'polygon' => 'polygon',
+        ),
+        'geocoder_field' => 'field_growroom_plant_tag_location',
+        'geocoder_handler' => 'bing',
+        'handler_settings' => array(
+          'google' => array(
+            'all_results' => 0,
+            'biasing' => array(
+              'bounds' => '',
+              'components' => '',
+              'region' => '',
+            ),
+            'geometry_type' => 'point',
+            'reject_results' => array(
+              'APPROXIMATE' => 0,
+              'GEOMETRIC_CENTER' => 0,
+              'RANGE_INTERPOLATED' => 0,
+              'ROOFTOP' => 0,
+            ),
+          ),
+        ),
+        'openlayers_map' => 'growroom_map_geofield',
+        'showInputField' => 1,
+        'use_geocoder' => 0,
+      ),
+      'type' => 'openlayers_geofield',
+      'weight' => 3,
+    ),
+  );
+
+  // Exported field_instance:
+  // 'field_collection_item-field_growroom_movement-field_growroom_move_to'.
+  $field_instances['field_collection_item-field_growroom_movement-field_growroom_move_to'] = array(
+    'bundle' => 'field_growroom_movement',
+    'default_value' => NULL,
+    'deleted' => 0,
+    'description' => 'Specify the area(s) that assets are being moved to. If you need to specify more precise locations (in addition to these areas), use the Geometry field below.',
+    'display' => array(
+      'default' => array(
+        'label' => 'inline',
+        'module' => 'taxonomy',
+        'settings' => array(),
+        'type' => 'taxonomy_term_reference_link',
+        'weight' => 0,
+      ),
+    ),
+    'entity_type' => 'field_collection_item',
+    'field_name' => 'field_growroom_move_to',
+    'label' => 'Movement to',
+    'required' => 0,
+    'settings' => array(
+      'user_register_form' => FALSE,
+    ),
+    'widget' => array(
+      'active' => 1,
+      'module' => 'options',
+      'settings' => array(),
+      'type' => 'options_select',
+      'weight' => 0,
+    ),
+  );
+
+  // Translatables
+  // Included for use with string extractors like potx.
+  t('Movement geometry');
+  t('Movement to');
+  t('Specify the area(s) that assets are being moved to. If you need to specify more precise locations (in addition to these areas), use the Geometry field below.');
+  t('This field allows you to optionally specify a more precise geometry for the new location of assets. If you leave it blank, the geometry will be copied from the areas that assets are moving to (if available).');
+
+  return $field_instances;
+}

@@ -1,0 +1,189 @@
+<?php
+
+/**
+ * @file
+ * Growroom asset install.
+ */
+
+/**
+ * Implements hook_enable().
+ */
+function growroom_asset_install() {
+
+  /**
+   * Set the weight of this module to 1.
+   *
+   * We do this so that our hook_views_data_alter() fires after the taxonomy
+   * module's hook, because we need to alter it.
+   *
+   * @see growroom_asset_views_data_alter()
+   */
+  db_query("UPDATE {system} SET weight = 1 WHERE name = 'growroom_asset'");
+}
+
+/**
+ * Implements hook_schema().
+ */
+function growroom_asset_schema() {
+  $schema['growroom_asset'] = array(
+    'description' => 'Growroom assets',
+    'fields' => array(
+      'id' => array(
+        'description' => 'Asset ID',
+        'type' => 'serial',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+      ),
+      'name' => array(
+        'description' => 'Asset name',
+        'type' => 'varchar',
+        'length' => '255',
+        'not null' => FALSE,
+      ),
+      'type' => array(
+        'description' => 'Asset type',
+        'type' => 'varchar',
+        'length' => '255',
+        'not null' => FALSE,
+      ),
+      'uid' => array(
+        'description' => 'Asset author',
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+        'default' => 0,
+      ),
+      'created' => array(
+        'description' => 'Timestamp when the asset was created',
+        'type' => 'int',
+        'not null' => TRUE,
+        'default' => 0,
+      ),
+      'changed' => array(
+        'description' => 'Timestamp when the asset was last modified',
+        'type' => 'int',
+        'not null' => TRUE,
+        'default' => 0,
+      ),
+      'archived' => array(
+        'description' => 'Timestamp when the asset was archived',
+        'type' => 'int',
+      ),
+    ),
+    'primary key' => array('id'),
+    'indexes' => array(
+      'name' => array('name'),
+      'type_index' => array('type'),
+      'uid' => array('uid'),
+      'created' => array('created'),
+      'modified' => array('changed'),
+      'archived' => array('archived'),
+    ),
+  );
+  $schema['growroom_asset_type'] = array(
+    'description' => 'Stores information about all defined asset types.',
+    'fields' => array(
+      'id' => array(
+        'description' => 'Primary Key: Unique asset type ID.',
+        'type' => 'serial',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+      ),
+      'type' => array(
+        'description' => 'The machine-readable name of this asset type.',
+        'type' => 'varchar',
+        'length' => 32,
+        'not null' => TRUE,
+      ),
+      'label' => array(
+        'description' => 'The human-readable name of this asset type.',
+        'type' => 'varchar',
+        'length' => 255,
+        'not null' => TRUE,
+        'default' => '',
+      ),
+
+      // The following fields are required to make types exportable via
+      // Entity API and Ctools.
+      'status' => array(
+        'type' => 'int',
+        'not null' => TRUE,
+        // Set the default to ENTITY_CUSTOM without using the constant as it is
+        // not safe to use it at this point.
+        'default' => 0x01,
+        'size' => 'tiny',
+        'description' => 'The exportable status of the entity.',
+      ),
+      'module' => array(
+        'description' => 'The name of the providing module if the entity has been defined in code.',
+        'type' => 'varchar',
+        'length' => 255,
+        'not null' => FALSE,
+      ),
+    ),
+    'primary key' => array('id'),
+    'unique keys' => array(
+      'type' => array('type'),
+    ),
+  );
+  return $schema;
+}
+
+/**
+ * Add 'active' field to growroom assets.
+ */
+function growroom_asset_update_7000(&$sandbox) {
+
+  // Add 'active' field to growroom assets.
+  $active = array(
+    'description' => 'Boolean indicating whether the asset is active.',
+    'type' => 'int',
+    'size' => 'tiny',
+    'not null' => TRUE,
+    'default' => 1,
+  );
+  db_add_field('growroom_asset', 'active', $active);
+  db_add_index('growroom_asset', 'active', array('active'));
+}
+
+/**
+ * Increase module weight.
+ */
+function growroom_asset_update_7001(&$sandbox) {
+
+  // Set the weight of growroom_asset to 1.
+  db_query("UPDATE {system} SET weight = 1 WHERE name = 'growroom_asset'");
+}
+
+/**
+ * Change the name of the {growroom_asset} index to fix SQLite installs.
+ */
+function growroom_asset_update_7002(&$sandbox) {
+  db_drop_index('growroom_asset', 'type');
+  db_add_index('growroom_asset', 'type_index', array('type'));
+}
+
+/**
+ * Change the asset active property to an archived timestamp.
+ */
+function growroom_asset_update_7003(&$sandbox) {
+
+  // Add the new archived field and index.
+  $new_field = array(
+    'description' => 'Timestamp when the asset was last archived',
+    'type' => 'int',
+  );
+  $new_keys = array(
+    'indexes' => array(
+      'archived' => array('archived'),
+    ),
+  );
+  db_add_field('growroom_asset', 'archived', $new_field, $new_keys);
+
+  // Populate the archived field of inactive assets with the value from the
+  // asset's changed field.
+  db_query('UPDATE {growroom_asset} SET archived = changed WHERE active = 0');
+
+  // Drop the active field.
+  db_drop_field('growroom_asset', 'active');
+}

@@ -1,0 +1,906 @@
+<?php
+
+/**
+ * @file
+ * Growroom asset - A growroom asset entity type.
+ */
+
+/****************************************************************
+ * Drupal hooks
+ * **************************************************************/
+
+/**
+ * Implements hook_init().
+ */
+function growroom_asset_init() {
+  global $conf;
+
+  // If the pathauto_entity module is enabled, ensure that growroom_asset entities
+  // are enabled in it.
+  if (module_exists('pathauto_entity')) {
+    if (empty($conf['pathauto_entity_available_entity_types'])) {
+      $conf['pathauto_entity_available_entity_types'] = array();
+    }
+    $conf['pathauto_entity_available_entity_types']['growroom_asset'] = 'growroom_asset';
+  }
+}
+
+/**
+ * Implements hook_permission().
+ */
+function growroom_asset_permission() {
+  $perms = array(
+    'administer growroom_asset module' => array(
+      'title' => t('Administer growroom asset module'),
+      'description' => t('Gives full access to everything in the growroom asset module.'),
+      'restrict access' => TRUE,
+    ),
+    'administer growroom_asset types' => array(
+      'title' => t('Administer growroom asset types'),
+      'restrict access' => TRUE,
+    ),
+    'view growroom assets' => array(
+      'title' => t('View growroom assets'),
+      'description' => t('Allows users to view the full list of growroom assets.'),
+    ),
+  );
+
+  // Add permissions for each growroom_asset type.
+  foreach (growroom_asset_types() as $growroom_asset_type) {
+    $type = $growroom_asset_type->type;
+    $ops = array('view', 'edit', 'delete');
+    $scopes = array('any', 'own');
+    $perms += array(
+      "create $type growroom assets" => array(
+        'title' => t('Create new %type_name growroom assets', array('%type_name' => $growroom_asset_type->label)),
+      ),
+    );
+    foreach ($ops as $op) {
+      foreach ($scopes as $scope) {
+        $perms += array(
+          "$op $scope $type growroom assets" => array(
+            'title' => drupal_ucfirst($op) . ' ' . $scope . ' ' . t('%type_name growroom assets', array('%type_name' => $growroom_asset_type->label)),
+          ),
+        );
+      }
+    }
+  }
+
+  return $perms;
+}
+
+/**
+ * Implements hook_menu().
+ */
+function growroom_asset_menu() {
+  $items = array();
+
+  $items['growroom/asset/add'] = array(
+    'title' => 'Add asset',
+    'page callback' => 'growroom_asset_add_types_page',
+    'access callback' => 'growroom_asset_add_access',
+    'file' => 'growroom_asset.pages.inc',
+  );
+  foreach (growroom_asset_types() as $type => $info) {
+    $items['growroom/asset/add/' . $type] = array(
+      'title' => 'Add ' . $info->label,
+      'page callback' => 'growroom_asset_add',
+      'page arguments' => array(3),
+      'access callback' => 'growroom_asset_access',
+      'access arguments' => array('create', 3),
+      'file' => 'growroom_asset.pages.inc',
+    );
+  }
+
+  $growroom_asset_uri = 'growroom/asset/%growroom_asset';
+  $growroom_asset_uri_argument_position = 2;
+
+  $items[$growroom_asset_uri] = array(
+    'title callback' => 'entity_label',
+    'title arguments' => array('growroom_asset', $growroom_asset_uri_argument_position),
+    'page callback' => 'growroom_asset_view',
+    'page arguments' => array($growroom_asset_uri_argument_position),
+    'access callback' => 'growroom_asset_access',
+    'access arguments' => array('view', $growroom_asset_uri_argument_position),
+    'file' => 'growroom_asset.pages.inc',
+  );
+
+  $items[$growroom_asset_uri . '/view'] = array(
+    'title' => 'View',
+    'type' => MENU_DEFAULT_LOCAL_TASK,
+    'weight' => -10,
+  );
+
+  $items[$growroom_asset_uri . '/delete'] = array(
+    'title' => 'Delete asset',
+    'title callback' => 'growroom_asset_label',
+    'title arguments' => array($growroom_asset_uri_argument_position),
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('growroom_asset_delete_form', $growroom_asset_uri_argument_position),
+    'access callback' => 'growroom_asset_access',
+    'access arguments' => array('update', $growroom_asset_uri_argument_position),
+    'file' => 'growroom_asset.pages.inc',
+  );
+
+  $items[$growroom_asset_uri . '/edit'] = array(
+    'title' => 'Edit',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('growroom_asset_form', $growroom_asset_uri_argument_position),
+    'access callback' => 'growroom_asset_access',
+    'access arguments' => array('update', $growroom_asset_uri_argument_position),
+    'file' => 'growroom_asset.pages.inc',
+    'type' => MENU_LOCAL_TASK,
+    'context' => MENU_CONTEXT_PAGE | MENU_CONTEXT_INLINE,
+  );
+
+  // Asset type delete form.
+  $items['admin/config/growroom/asset-types/%growroom_asset_type/delete'] = array(
+    'title' => 'Delete',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('growroom_asset_type_form_delete_confirm', 4),
+    'access arguments' => array('administer growroom_asset types'),
+    'weight' => 1,
+    'type' => MENU_NORMAL_ITEM,
+    'file' => 'growroom_asset.admin.inc',
+  );
+
+  // Asset autocomplete path.
+  $items['growroom_asset/autocomplete/%/%'] = array(
+    'title' => 'Autocomplete for growroom assets',
+    'page callback' => 'growroom_asset_autocomplete',
+    'page arguments' => array(2, 3),
+    'access callback' => 'growroom_asset_autocomplete_access',
+    'access arguments' => array(2),
+    'type' => MENU_CALLBACK,
+  );
+
+  return $items;
+}
+
+/**
+ * Implements hook_entity_info().
+ */
+function growroom_asset_entity_info() {
+  $return = array(
+    'growroom_asset' => array(
+      'label' => t('Growroom asset'),
+      'entity class' => 'GrowroomAsset',
+      'controller class' => 'GrowroomAssetController',
+      'base table' => 'growroom_asset',
+      'fieldable' => TRUE,
+      'entity keys' => array(
+        'id' => 'id',
+        'bundle' => 'type',
+        'label' => 'name',
+      ),
+      'bundle keys' => array(
+        'bundle' => 'type',
+      ),
+      'bundles' => array(),
+      'load hook' => 'growroom_asset_load',
+      'view modes' => array(
+        'full' => array(
+          'label' => t('Default'),
+          'custom settings' => FALSE,
+        ),
+      ),
+      'label callback' => 'entity_class_label',
+      'uri callback' => 'entity_class_uri',
+      'module' => 'growroom_asset',
+      'access callback' => 'growroom_asset_access',
+    ),
+  );
+  $return['growroom_asset_type'] = array(
+    'label' => t('Growroom asset type'),
+    'entity class' => 'GrowroomAssetType',
+    'controller class' => 'GrowroomAssetTypeController',
+    'base table' => 'growroom_asset_type',
+    'fieldable' => FALSE,
+    'bundle of' => 'growroom_asset',
+    'exportable' => TRUE,
+    'entity keys' => array(
+      'id' => 'id',
+      'name' => 'type',
+      'label' => 'label',
+    ),
+    'module' => 'growroom_asset',
+    // Enable the entity API admin UI.
+    'admin ui' => array(
+      'path' => 'admin/config/growroom/asset-types',
+      'file' => 'growroom_asset.admin.inc',
+      'controller class' => 'GrowroomAssetTypeUIController',
+    ),
+    'access callback' => 'growroom_asset_type_access',
+  );
+
+  return $return;
+}
+
+/**
+ * Implements hook_entity_info_alter().
+ */
+function growroom_asset_entity_info_alter(&$entity_info) {
+  foreach (growroom_asset_types() as $type => $info) {
+    $entity_info['growroom_asset']['bundles'][$type] = array(
+      'label' => $info->label,
+      'admin' => array(
+        'path' => 'admin/config/growroom/asset-types/manage/%growroom_asset_type',
+        'real path' => 'admin/config/growroom/asset-types/manage/' . $type,
+        'bundle argument' => 5,
+      ),
+    );
+  }
+}
+
+/**
+ * Implements hook_entity_property_info_alter().
+ */
+function growroom_asset_entity_property_info_alter(&$info) {
+  $properties = &$info['growroom_asset']['properties'];
+  $properties['name'] = array(
+    'label' => t('Name'),
+    'description' => t('The name of the asset.'),
+    'setter callback' => 'entity_property_verbatim_set',
+    'schema field' => 'name',
+  );
+  $properties['type'] = array(
+    'label' => t('Growroom asset type'),
+    'type' => 'token',
+    'description' => t('The growroom asset type.'),
+    'setter callback' => 'entity_property_verbatim_set',
+    'access callback' => 'growroom_asset_properties_access',
+    'options list' => 'growroom_asset_type_get_names',
+    'required' => TRUE,
+    'schema field' => 'type',
+  );
+  $properties['uid'] = array(
+    'label' => t('Author'),
+    'type' => 'user',
+    'description' => t('The author of the asset.'),
+    'setter callback' => 'entity_property_verbatim_set',
+    'access callback' => 'growroom_asset_properties_access',
+    'required' => TRUE,
+    'schema field' => 'uid',
+  );
+  $properties['created'] = array(
+    'label' => t('Created'),
+    'type' => 'date',
+    'description' => t('The timestamp when the asset was created.'),
+    'setter callback' => 'entity_property_verbatim_set',
+    'access callback' => 'growroom_asset_properties_access',
+    'required' => TRUE,
+    'schema field' => 'created',
+  );
+  $properties['changed'] = array(
+    'label' => t('Changed'),
+    'type' => 'date',
+    'description' => t('The timestamp when the asset was last modified.'),
+    'setter callback' => 'entity_property_verbatim_set',
+    'access callback' => 'growroom_asset_properties_access',
+    'required' => TRUE,
+    'schema field' => 'changed',
+  );
+  $properties['archived'] = array(
+    'label' => t('Archived'),
+    'type' => 'date',
+    'description' => t('The timestamp when the asset was archived.'),
+    'setter callback' => 'entity_property_verbatim_set',
+    'access callback' => 'growroom_asset_properties_access',
+    'schema field' => 'archived',
+  );
+}
+
+/**
+ * Implements hook_field_extra_fields().
+ */
+function growroom_asset_field_extra_fields() {
+  $growroom_asset_types = growroom_asset_types();
+  $extra_fields = array(
+    'growroom_asset' => array(),
+  );
+  foreach ($growroom_asset_types as $type) {
+    $extra_fields['growroom_asset'][$type->type] = array(
+      'form' => array(
+
+        // Add asset name field to field UI.
+        'name' => array(
+          'label' => t('Name'),
+          'description' => t('The name of the asset.'),
+          'weight' => -10,
+        ),
+      ),
+    );
+  }
+  return $extra_fields;
+}
+
+/**
+ * Implements hook_entity_view().
+ */
+function growroom_asset_entity_view($entity, $type, $view_mode, $langcode) {
+
+  // If the entity is not a growroom_asset, bail.
+  if ($type != 'growroom_asset') {
+    return;
+  }
+
+  // Add the asset type.
+  $asset_types = growroom_asset_type_get_names();
+  if (!empty($asset_types[$entity->type])) {
+    $entity->content['type'] = array(
+      '#markup' => '<div><strong>Asset type:</strong> ' . $asset_types[$entity->type] . '</div>',
+      '#weight' => -102,
+    );
+  }
+
+  // Add the asset ID.
+  if (!empty($entity->id)) {
+    $entity->content['id'] = array(
+      '#markup' => '<div><strong>Asset ID:</strong> ' . $entity->id . '</div>',
+      '#weight' => -101,
+    );
+  }
+
+  // If the asset is archived, display a message and the archived date.
+  if (!empty($entity->archived)) {
+    drupal_set_message(t('This asset is archived. Archived assets should not be edited or deleted unless they contain information that is incorrect.'), 'warning');
+    $date = format_date($entity->archived);
+    $entity->content['archived'] = array(
+      '#markup' => '<div><strong>' . t('Archived') . ':</strong> ' . $date . '</div>',
+      '#weight' => -100,
+    );
+  }
+}
+
+/**
+ * Implements hook_entity_presave().
+ */
+function growroom_asset_entity_presave($entity, $type) {
+
+  // Only operate on growroom_asset entities.
+  if ($type != 'growroom_asset') {
+    return;
+  }
+
+  // Update "changed" value if there was a value mapped to that.
+  if (isset($entity->feeds_item->asset_changed)) {
+    $entity->changed = $entity->feeds_item->asset_changed;
+  }
+}
+
+/**
+ * Implements hook_action_info().
+ */
+function growroom_asset_action_info() {
+  return array(
+    'growroom_asset_archive_action' => array(
+      'type' => 'growroom_asset',
+      'label' => t('Archive'),
+      'configurable' => FALSE,
+      'triggers' => array('any'),
+    ),
+    'growroom_asset_unarchive_action' => array(
+      'type' => 'growroom_asset',
+      'label' => t('Unarchive'),
+      'configurable' => FALSE,
+      'triggers' => array('any'),
+    ),
+    'growroom_asset_clone_action' => array(
+      'type' => 'growroom_asset',
+      'label' => t('Clone'),
+      'configurable' => FALSE,
+      'triggers' => array('any'),
+    ),
+  );
+}
+
+/***************************************************************
+ * Asset action callbacks
+ * *************************************************************/
+
+/**
+ * Action function for growroom_asset_archive_action.
+ *
+ * Archives an asset.
+ *
+ * @param GrowroomAsset $asset
+ *   The asset entity object.
+ * @param array $context
+ *   Array with parameters for this action.
+ */
+function growroom_asset_archive_action(GrowroomAsset $asset, $context = array()) {
+
+  // Only proceed if the asset is not already archived.
+  if (!empty($asset->archived)) {
+    return;
+  }
+
+  // Archive the asset.
+  $asset->archived = REQUEST_TIME;
+
+  // Save the asset.
+  growroom_asset_save($asset);
+}
+
+/**
+ * Action function for growroom_asset_unarchive_action.
+ *
+ * Un-archives an asset.
+ *
+ * @param GrowroomAsset $asset
+ *   The asset entity object.
+ * @param array $context
+ *   Array with parameters for this action.
+ */
+function growroom_asset_unarchive_action(GrowroomAsset $asset, $context = array()) {
+
+  // Only proceed if the asset is already archived.
+  if (empty($asset->archived)) {
+    return;
+  }
+
+  // Un-archive the asset..
+  $asset->archived = NULL;
+
+  // Save the asset.
+  growroom_asset_save($asset);
+}
+
+/**
+ * Action function for growroom_asset_clone_action.
+ *
+ * Clones an asset.
+ *
+ * @param GrowroomAsset $asset
+ *   The asset entity object.
+ * @param array $context
+ *   Array with parameters for this action.
+ */
+function growroom_asset_clone_action(GrowroomAsset $asset, $context = array()) {
+
+  // Remember the asset ID.
+  $asset_id = $asset->id;
+
+  // Add "(clone of asset #[asset-id])" to the end of the asset's name.
+  $asset->name = $asset->name . ' ' . t('(clone of asset #@id)', array('@id' => $asset_id));
+
+  // Clear the asset ID.
+  unset($asset->id);
+
+  // Set the created and changed timestamps to now.
+  $asset->created = REQUEST_TIME;
+  $asset->changed = REQUEST_TIME;
+
+  // Save the asset.
+  growroom_asset_save($asset);
+
+  // Set a message with a link to the new asset.
+  $asset_uri = entity_uri('growroom_asset', $asset);
+  $asset_label = entity_label('growroom_asset', $asset);
+  $message = t('Asset saved: <a href="@uri">%title</a>', array('@uri' => url($asset_uri['path']), '%title' => $asset_label));
+  drupal_set_message($message);
+}
+
+/****************************************************************
+ * Contrib hooks
+ * **************************************************************/
+
+/**
+ * Implements hook_ctools_plugin_api().
+ */
+function growroom_asset_ctools_plugin_api($owner, $api) {
+  $return = array();
+  if ($owner == 'feeds' && $api == 'plugins') {
+    $return['version'] = 1;
+  }
+  return $return;
+}
+
+/**
+ * Implements hook_ctools_plugin_directory().
+ */
+function growroom_asset_ctools_plugin_directory($owner, $plugin_type) {
+  $directory = '';
+  if ($owner == 'page_manager' || $owner == 'ctools' || $owner == 'panels') {
+    if ($plugin_type == 'tasks') {
+      $directory = 'includes/ctools';
+    }
+  }
+  return $directory;
+}
+
+/**
+ * Implements hook_feed_plugins().
+ */
+function growroom_asset_feeds_plugins() {
+  $info = array();
+  $info['GrowroomAssetProcessor'] = array(
+    'name' => 'Growroom asset processor',
+    'description' => 'Create and update growroom assets.',
+    'help' => 'Create and update growroom assets from parsed content.',
+    'handler' => array(
+      'parent' => 'FeedsProcessor',
+      'class' => 'GrowroomAssetProcessor',
+      'file' => 'GrowroomAssetProcessor.inc',
+      'path' => drupal_get_path('module', 'growroom_asset') . '/includes/feeds/plugins',
+    ),
+  );
+  return $info;
+}
+
+/**
+ * Implements hook_views_api().
+ */
+function growroom_asset_views_api($module = NULL, $api = NULL) {
+  return array("api" => "3.0");
+}
+
+/***************************************************************
+ * Access functions
+ * *************************************************************/
+
+/**
+ * Access callback for asset entities.
+ *
+ * @param string $op
+ *   The operation being performed. One of 'view', 'update', 'create', 'delete'.
+ * @param GrowroomAsset|string $growroom_asset
+ *   Optionally a specific asset entity to check.
+ * @param object $account
+ *   The user to check for. Leave it to NULL to check for the global user.
+ *
+ * @return bool
+ *   Whether access is allowed or not.
+ */
+function growroom_asset_access($op, $growroom_asset = NULL, $account = NULL) {
+  $rights = &drupal_static(__FUNCTION__, array());
+
+  // If $op is not one of the supported ones, deny access.
+  if (!in_array($op, array('create', 'view', 'update', 'delete'), TRUE)) {
+    return FALSE;
+  }
+  // If no user object is supplied, the access check is for the current user.
+  if (empty($account)) {
+    global $user;
+    $account = $user;
+  }
+
+  // If no asset is provided, check for access to all assets.
+  if (empty($growroom_asset)) {
+    return user_access('view growroom assets', $account);
+  }
+
+  // $growroom_asset may be either an object or an asset type. Since asset types
+  // cannot be an integer, use either id or type as the static cache id.
+  $cid = is_object($growroom_asset) ? $growroom_asset->id : $growroom_asset;
+
+  // If we've already checked access for this asset, user and op, return from
+  // cache.
+  if (isset($rights[$account->uid][$cid][$op])) {
+    return $rights[$account->uid][$cid][$op];
+  }
+
+  // If the user has 'administer growroom_asset module' permission, grant them
+  // access.
+  if (user_access('administer growroom_asset module', $account)) {
+    $rights[$account->uid][$cid][$op] = TRUE;
+    return TRUE;
+  }
+
+  // Check access to the asset based on it's type.
+  $type = is_string($growroom_asset) ? $growroom_asset : $growroom_asset->type;
+  $growroom_asset_types = growroom_asset_types();
+  $type_names = array();
+  foreach ($growroom_asset_types as $name => $growroom_asset_type) {
+    $type_names[] = $name;
+  }
+  if (in_array($type, $type_names)) {
+    if ($op == 'create' && user_access('create ' . $type . ' growroom assets', $account)) {
+      $rights[$account->uid][$cid][$op] = TRUE;
+      return TRUE;
+    }
+
+    if ($op == 'view') {
+      if (user_access('view any ' . $type . ' growroom assets', $account) || (user_access('view own ' . $type . ' growroom assets', $account) && ($account->uid == $growroom_asset->uid))) {
+        $rights[$account->uid][$cid][$op] = TRUE;
+        return TRUE;
+      }
+    }
+
+    if ($op == 'update') {
+      if (user_access('edit any ' . $type . ' growroom assets', $account) || (user_access('edit own ' . $type . ' growroom assets', $account) && ($account->uid == $growroom_asset->uid))) {
+        $rights[$account->uid][$cid][$op] = TRUE;
+        return TRUE;
+      }
+    }
+
+    if ($op == 'delete') {
+      if (user_access('delete any ' . $type . ' growroom assets', $account) || (user_access('delete own ' . $type . ' growroom assets', $account) && ($account->uid == $growroom_asset->uid))) {
+        $rights[$account->uid][$cid][$op] = TRUE;
+        return TRUE;
+      }
+    }
+  }
+
+  // If all else fails, deny access.
+  return FALSE;
+}
+
+/**
+ * Access callback: Checks whether the user has permission to add an asset.
+ *
+ * @param object|null $account
+ *   The user account.
+ *
+ * @return bool
+ *   TRUE if the user has add permission, otherwise FALSE.
+ */
+function growroom_asset_add_access($account = NULL) {
+
+  // If no user object is supplied, the access check is for the current user.
+  if (empty($account)) {
+    global $user;
+    $account = $user;
+  }
+
+  // Check each of the asset types to see if the user has access.
+  $types = growroom_asset_types();
+  foreach ($types as $type) {
+    if (growroom_asset_access('create', $type->type, $account)) {
+      return TRUE;
+    }
+  }
+
+  // If all else fails, deny access.
+  return FALSE;
+}
+
+/**
+ * Access callback for asset types.
+ *
+ * @param string $op
+ *   The operation being performed.
+ * @param GrowroomAssetType $growroom_asset_type
+ *   The growroom asset entity.
+ *
+ * @return bool
+ *   Returns true if the user has access.
+ */
+function growroom_asset_type_access($op, GrowroomAssetType $growroom_asset_type = NULL) {
+  return user_access('administer growroom_asset types');
+}
+
+/**
+ * Access callback for the growroom_asset autocomplete path.
+ *
+ * @param string $asset_type
+ *   The asset type to filter to, or "all" for no filtering.
+ *
+ * @return bool
+ *   Returns TRUE or FALSE to grant or deny access to the path.
+ */
+function growroom_asset_autocomplete_access($asset_type) {
+  if ($asset_type == 'all' || strpos($asset_type, '+') !== FALSE) {
+    return user_access('view growroom assets');
+  }
+  return user_access('view any ' . $asset_type . ' growroom assets');
+}
+
+
+/**
+ * Access callback for growroom_asset properties.
+ */
+function growroom_asset_properties_access($op, $property, $entity = NULL, $account = NULL) {
+
+  // Delegate to the general growroom_asset access callback, based on the $op.
+  switch ($op) {
+    case 'view':
+      return growroom_asset_access('view', $entity, $account);
+    case 'edit':
+      return growroom_asset_access('update', $entity, $account);
+  }
+
+  // Otherwise, deny access.
+  return FALSE;
+}
+
+/***************************************************************
+ * Growroom asset page callbacks.
+ * *************************************************************/
+
+/**
+ * Page callback for the growroom_asset autocomplete path.
+ *
+ * @param string $asset_type
+ *   The asset type to filter to. If this is set to 'all' then no filtering
+ *   will be performed. Multiple asset types can be specified as a single
+ *   string, separated by plus characters (+). ie: "plant+group"
+ * @param string $string
+ *   The string to search for.
+ *
+ * @return array
+ *   Returns an array of matching assets in JSON form.
+ */
+function growroom_asset_autocomplete($asset_type, $string) {
+
+  // Search the database for assets with matching names
+  $query = db_select('growroom_asset', 'fa')
+    ->fields('fa', array('id', 'name', 'archived'))
+    ->condition('name', '%' . db_like($string) . '%', 'LIKE')
+    ->orderBy('name', 'ASC')
+    ->range(0, 10);
+
+  // If the asset type is not "all", filter by asset type.
+  if ($asset_type != 'all') {
+    $asset_types = array();
+    if (strpos($asset_type, '+') !== FALSE) {
+      $asset_types = explode('+', $asset_type);
+    }
+    else {
+      $asset_types[] = $asset_type;
+    }
+    $query->condition('type', $asset_types, 'IN');
+  }
+
+  // Execute the query.
+  $result = $query->execute();
+
+  // Save matches to an array, including the asset name and ID.
+  $matches = array();
+  foreach ($result as $row) {
+    $match = t('@asset_name [id: @asset_id]', array('@asset_name' => $row->name, '@asset_id' => $row->id));
+    if (!empty($row->archived)) {
+      $match .= ' (' . t('archived') . ')';
+    }
+    $matches[] = $match;
+  }
+
+  // Map to an associative array.
+  $matches = drupal_map_assoc($matches);
+
+  // Return the matches as JSON.
+  drupal_json_output($matches);
+}
+
+/***************************************************************
+ * Growroom asset API functions
+ * *************************************************************/
+
+/**
+ * Load an asset.
+ *
+ * @param int $id
+ *   The asset id.
+ * @param bool $reset
+ *   Whether or not to reset the entity cache.
+ *
+ * @return GrowroomAsset
+ *   Returns a growroom asset object.
+ */
+function growroom_asset_load($id, $reset = FALSE) {
+  $growroom_assets = growroom_asset_load_multiple(array($id), array(), $reset);
+  return reset($growroom_assets);
+}
+
+/**
+ * Load multiple assets based on certain conditions.
+ *
+ * @param array $ids
+ *   An array of growroom asset ids.
+ * @param array $conditions
+ *   An array of entity load conditions.
+ * @param bool $reset
+ *   Whether or not to reset the entity cache.
+ *
+ * @return array
+ *   Returns an array of growroom assets.
+ */
+function growroom_asset_load_multiple($ids = array(), $conditions = array(), $reset = FALSE) {
+  return entity_load('growroom_asset', $ids, $conditions, $reset);
+}
+
+/**
+ * Save asset.
+ *
+ * @param GrowroomAsset $growroom_asset
+ *   The growroom asset entity.
+ */
+function growroom_asset_save(GrowroomAsset $growroom_asset) {
+  entity_save('growroom_asset', $growroom_asset);
+}
+
+/**
+ * Delete single asset.
+ *
+ * @param GrowroomAsset $growroom_asset
+ *   The growroom asset entity.
+ */
+function growroom_asset_delete(GrowroomAsset $growroom_asset) {
+  entity_delete('growroom_asset', entity_id('growroom_asset', $growroom_asset));
+}
+
+/**
+ * Delete multiple assets.
+ *
+ * @param array $growroom_asset_ids
+ *   An array of growroom asset ids.
+ */
+function growroom_asset_delete_multiple(array $growroom_asset_ids) {
+  entity_delete_multiple('growroom_asset', $growroom_asset_ids);
+}
+
+/***************************************************************
+ * Growroom asset type API functions
+ * *************************************************************/
+
+/**
+ * Load asset type.
+ *
+ * @param string $growroom_asset_type
+ *   The growroom asset type.
+ *
+ * @return GrowroomAssetType
+ *   Returns a growroom asset type entity.
+ */
+function growroom_asset_type_load($growroom_asset_type) {
+  return growroom_asset_types($growroom_asset_type);
+}
+
+/**
+ * List of asset types.
+ *
+ * @param string $type_name
+ *   The growroom asset type name.
+ *
+ * @return GrowroomAssetType|array
+ *   Returns either a single type, or an array of types.
+ */
+function growroom_asset_types($type_name = NULL) {
+  $types = entity_load_multiple_by_name('growroom_asset_type', isset($type_name) ? array($type_name) : FALSE);
+  return isset($type_name) ? reset($types) : $types;
+}
+
+/**
+ * Save asset type entity.
+ *
+ * @param GrowroomAssetType $growroom_asset_type
+ *   The growroom asset type entity.
+ */
+function growroom_asset_type_save(GrowroomAssetType $growroom_asset_type) {
+  entity_save('growroom_asset_type', $growroom_asset_type);
+}
+
+/**
+ * Delete single asset type.
+ *
+ * @param GrowroomAssetType $growroom_asset_type
+ *   The growroom asset type entity.
+ */
+function growroom_asset_type_delete(GrowroomAssetType $growroom_asset_type) {
+  entity_delete('growroom_asset_type', entity_id('growroom_asset_type', $growroom_asset_type));
+}
+
+/**
+ * Delete multiple asset types.
+ *
+ * @param array $growroom_asset_type_ids
+ *   An array of growroom asset type ids.
+ */
+function growroom_asset_type_delete_multiple(array $growroom_asset_type_ids) {
+  entity_delete_multiple('growroom_asset_type', $growroom_asset_type_ids);
+}
+
+/**
+ * Get the names of all asset types.
+ *
+ * @return array
+ *   Returns an array of asset type names, keyed by machine name.
+ */
+function growroom_asset_type_get_names() {
+  $names = array();
+  $types = growroom_asset_types();
+  foreach ($types as $type) {
+    $names[$type->type] = $type->label;
+  }
+  return $names;
+}

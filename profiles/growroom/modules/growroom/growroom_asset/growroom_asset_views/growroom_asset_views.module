@@ -1,0 +1,9 @@
+<?php
+
+/**
+ * @file
+ * Growroom asset views.
+ */
+
+// Include Features code.
+include_once 'growroom_asset_views.features.inc';

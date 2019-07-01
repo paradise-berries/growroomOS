@@ -1,0 +1,12 @@
+name = Growroom API
+description = Extends the RESTful Web Services module to provide growroomOS-specific APIs.
+core = 7.x
+package = growroomOS
+dependencies[] = restws
+dependencies[] = restws_file
+
+; Information added by Drupal.org packaging script on 2018-11-14
+version = "7.x-0.01 beta"
+core = "7.x"
+project = "growroom"
+datestamp = "1542218112"

@@ -1,0 +1,26 @@
+<?php
+/**
+ * @file
+ * Code for the Growroom Asset Offspring feature.
+ */
+
+include_once 'growroom_asset_offspring.features.inc';
+
+/**
+ * Implements hook_growroom_ui_entity_views().
+ */
+function growroom_asset_offspring_growroom_ui_entity_views($entity_type, $bundle, $entity) {
+
+  // Display View of asset offspring on assets.
+  if ($entity_type == 'growroom_asset') {
+    return array(
+      array(
+        'name' => 'growroom_asset_offspring',
+        'display' => 'page',
+        'title' => t('Offspring'),
+        'group' => 'assets',
+        'weight' => 110,
+      ),
+    );
+  }
+}

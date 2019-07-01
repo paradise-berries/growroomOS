@@ -1,0 +1,91 @@
+<?php
+/**
+ * @file
+ * Code for the Growroom Log: Input feature.
+ */
+
+// Include Features code.
+include_once 'growroom_log_input.features.inc';
+
+/**
+ * Implements hook_growroom_ui_entities().
+ */
+function growroom_log_input_growroom_ui_entities() {
+  return array(
+    'log' => array(
+      'growroom_input' => array(
+        'label' => t('Input'),
+        'label_plural' => t('Inputs'),
+        'view' => 'growroom_log_input',
+        'areas' => TRUE,
+        'weight' => 0,
+      ),
+    ),
+  );
+}
+
+/**
+ * Implements hook_feeds_importer_default_alter().
+ */
+function growroom_log_input_feeds_importer_default_alter(&$importers) {
+
+  // Add extra field mappings to inputs.
+  $name = 'log_growroom_input';
+  if (!empty($importers[$name])) {
+    $mappings = array(
+      array(
+        'source' => 'Material',
+        'target' => 'field_growroom_material',
+        'unique' => FALSE,
+        'language' => 'und',
+      ),
+      array(
+        'source' => 'Purpose',
+        'target' => 'field_growroom_purpose',
+        'unique' => FALSE,
+        'language' => 'und',
+      ),
+      array(
+        'source' => 'Method',
+        'target' => 'field_growroom_method',
+        'unique' => FALSE,
+        'language' => 'und',
+      ),
+      array(
+        'source' => 'Source',
+        'target' => 'field_growroom_source',
+        'unique' => FALSE,
+        'language' => 'und',
+      ),
+      array(
+        'source' => 'Lot number',
+        'target' => 'field_growroom_lot_number',
+        'unique' => FALSE,
+        'language' => 'und',
+      ),
+      array(
+        'source' => 'Date purchased',
+        'target' => 'field_growroom_date_purchase:start',
+        'unique' => FALSE,
+        'language' => 'und',
+      ),
+    );
+    $importer_mappings =& $importers[$name]->config['processor']['config']['mappings'];
+    $importer_mappings = array_merge($importer_mappings, $mappings);
+  }
+}
+
+/**
+ * Implements hook_feeds_tamper_default_alter().
+ */
+function growroom_log_input_feeds_tamper_default_alter(&$feeds_tampers) {
+
+  // If growroom_import is not installed, bail.
+  if (!module_exists('growroom_import')) {
+    return;
+  }
+
+  // Convert date purchased to a Unix timestamp
+  $feeds_tamper = growroom_import_feeds_tamper_plugin('log', 'growroom_input', 'Date purchased', 'strtotime');
+  $feeds_tampers[$feeds_tamper->id] = $feeds_tamper;
+}

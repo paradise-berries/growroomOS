@@ -1,0 +1,35 @@
+<?php
+/**
+ * @file
+ * Growroom Access install file.
+ */
+
+/**
+ * Implements hook_install().
+ */
+function growroom_access_install() {
+
+  // Create growroom roles.
+  growroom_access_roles_create();
+}
+
+/**
+ * Synchronize all available growroom role permissions.
+ */
+function growroom_access_enable() {
+
+  // Sync permissions.
+  growroom_access_sync_perms();
+}
+
+/**
+ * Implements hook_uninstall().
+ */
+function growroom_access_uninstall() {
+
+  // Delete the growroom roles provided by this module.
+  $roles = growroom_access_growroom_access_roles();
+  foreach ($roles as $name) {
+    user_role_delete($name);
+  }
+}

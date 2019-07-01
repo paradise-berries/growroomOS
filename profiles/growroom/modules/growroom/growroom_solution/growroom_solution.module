@@ -1,0 +1,16 @@
+<?php
+/**
+ * @file
+ * Code for the Growroom Solution feature.
+ */
+
+include_once 'growroom_solution.features.inc';
+
+/**
+ * Implements hook_growroom_log_categories().
+ */
+function growroom_solution_growroom_log_categories() {
+
+  // Provide an "Solution" log category.
+  return array('Solution');
+}

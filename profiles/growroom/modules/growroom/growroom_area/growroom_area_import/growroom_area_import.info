@@ -1,0 +1,14 @@
+name = Growroom Area Import
+description = A tool for importing multiple area geometries from a single KML file.
+core = 7.x
+package = growroomOS (beta)
+dependencies[] = growroom_area
+dependencies[] = growroom_map_kml
+dependencies[] = growroom_term
+dependencies[] = geophp
+
+; Information added by Drupal.org packaging script on 2018-11-14
+version = "7.x-0.01 beta"
+core = "7.x"
+project = "growroom"
+datestamp = "1542218112"

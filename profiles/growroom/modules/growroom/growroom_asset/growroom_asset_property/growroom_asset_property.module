@@ -1,0 +1,264 @@
+<?php
+
+/**
+ * @file
+ * Growroom asset property.
+ */
+
+/**
+ * Get the value of an asset's property, given its ID and property name.
+ *
+ * @param $asset_id
+ *   The ID of the asset.
+ * @param $name
+ *   The name of the property.
+ * @param $default
+ *   A default value to use if the asset property is not set.
+ *
+ * @return string
+ *   Returns the value string. This will return the default value provided by
+ *   the $default paremeter (which defaults to an empty string) if the property
+ *   is not set. If you need to check whether or not a property is set, use
+ *   growroom_asset_property_is_set() instead, which returns a boolean.
+ */
+function growroom_asset_property_get($asset_id, $name, $default = '') {
+
+  // Query the database for the value.
+  $value = db_query('SELECT value FROM {growroom_asset_property} WHERE id=:id AND name=:name', array(':id' => $asset_id, ':name' => $name))->fetchField();
+
+  // If nothing was found, return the default.
+  if (empty($value)) {
+    return $default;
+  }
+
+  // If it's empty for whatever reason, return the default.
+  if (empty($value)) {
+    return $default;
+  }
+
+  // Return the value.
+  return $value;
+}
+
+/**
+ * Set an asset's property.
+ *
+ * @param $asset_id
+ *   The ID of the asset.
+ * @param $name
+ *   The property name.
+ * @param $value
+ *   The property value.
+ *
+ * @return bool
+ *   Returns TRUE on success, FALSE on failure.
+ */
+function growroom_asset_property_set($asset_id, $name, $value) {
+
+  // Make sure $asset_id and $name are not empty.
+  if (empty($asset_id) || empty($name)) {
+    return FALSE;
+  }
+
+  // Make sure the property name is a string that is less than 128 characters
+  // in length.
+  if (!is_string($name) || strlen($name) > 128) {
+    return FALSE;
+  }
+
+  // Make sure that the value is a scalar.
+  if (!is_scalar($value)) {
+    return FALSE;
+  }
+
+  // Convert the value to a string, and make sure it's length is less than 128.
+  $value = (string) $value;
+  if (strlen($value) > 128) {
+    return FALSE;
+  }
+
+  // Make sure the asset exists.
+  $exists = db_query('SELECT COUNT(*) FROM {growroom_asset} WHERE id = :id', array(':id' => $asset_id))->fetchField();
+  if (empty($exists)) {
+    return FALSE;
+  }
+
+  // Assemble a row for insert/update.
+  $row = array(
+    'id' => $asset_id,
+    'name' => $name,
+    'value' => $value,
+  );
+
+  // Check to see if the property is already set for this asset.
+  $set = growroom_asset_property_is_set($asset_id, $name);
+
+  // Insert/update the record in the database.
+  $property = $set ? array('id', 'name') : array();
+  $result = drupal_write_record('growroom_asset_property', $row, $property);
+
+  // Return TRUE or FALSE.
+  return !empty($result) ? TRUE : FALSE;
+}
+
+/**
+ * Delete an asset property.
+ *
+ * @param $asset_id
+ *   The ID of the asset.
+ * @param $name
+ *   The name of the property.
+ */
+function growroom_asset_property_delete($asset_id, $name) {
+
+  // Make sure the ID and name are not empty.
+  if (empty($asset_id) || empty($name)) {
+    return;
+  }
+
+  // Run a DELETE query.
+  db_query('DELETE FROM {growroom_asset_property} WHERE id=:id AND name=:name', array(':id' => $asset_id, ':name' => $name));
+}
+
+/**
+ * Check to see if a specific property is set for an asset.
+ *
+ * @param $asset_id
+ *   The ID of the asset.
+ * @param $name
+ *   The name of the property.
+ *
+ * @return bool
+ *   Returns TRUE if the property is set, FALSE otherwise.
+ */
+function growroom_asset_property_is_set($asset_id, $name) {
+  $set = db_query('SELECT COUNT(*) FROM {growroom_asset_property} WHERE id=:id AND name=:name', array(':id' => $asset_id, ':name' => $name))->fetchField();
+  return !empty($set);
+}
+
+/**
+ * Implements hook_feeds_processor_targets().
+ */
+function growroom_asset_property_feeds_processor_targets($entity_type, $bundle) {
+  $targets = array();
+
+  // If this is not a growroom_asset entity, bail.
+  if ($entity_type != 'growroom_asset') {
+    return $targets;
+  }
+
+  // Ask modules for available asset properties.
+  $properties = module_invoke_all('growroom_asset_property');
+
+  // If there are no properties, bail.
+  if (empty($properties) || !is_array($properties)) {
+    return $targets;
+  }
+
+  // Create a mapping target for each property.
+  foreach ($properties as $property) {
+    $targets['growroom_asset_property:' . $property] = array(
+      'name' => t('Growroom asset property: @property', array('@property' => $property)),
+      'description' => t('Sets the @property property on a growroom asset entity.', array('@property' => $property)),
+      'callback' => 'growroom_asset_property_feeds_set_target',
+    );
+  }
+
+  // Return the targets.
+  return $targets;
+}
+
+/**
+ * Callback for setting an asset property during a Feeds import.
+ */
+function growroom_asset_property_feeds_set_target(FeedsSource $source, $entity, $target, array $values, array $mapping) {
+
+  // If values are empty, bail. Asset properties are always single values, so
+  // we are only going to look t the first array element.
+  if (empty($values[0])) {
+    return;
+  }
+
+  // Get the value.
+  $value = reset($values);
+
+  // Split the $target variable to get the property name.
+  $parts = explode(':', $target);
+
+  // If the first part isn't 'growroom_asset_property', something's wrong. Bail.
+  if ($parts[0] != 'growroom_asset_property') {
+    return;
+  }
+
+  // If the second part is empty, bail.
+  if (empty($parts[1])) {
+    return;
+  }
+
+  // Get the property name.
+  $property = $parts[1];
+
+  // Add the property to the $entity->growroom_asset_property. We don't have an
+  // entity ID yet, so we can't save directly. This module implements
+  // hook_entity_insert() to set any asset properties stored in that array.
+  $entity->growroom_asset_property[$property] = $value;
+}
+
+/**
+ * Implements hook_entity_insert().
+ */
+function growroom_asset_property_entity_insert($entity, $type) {
+
+  // Only act on growroom asset entities.
+  if ($type != 'growroom_asset') {
+    return;
+  }
+
+  // If the entity has any properties defined in $entity->growroom_asset_property,
+  // save them to the database.
+  if (!empty($entity->growroom_asset_property) && is_array($entity->growroom_asset_property)) {
+    foreach ($entity->growroom_asset_property as $name => $value) {
+      growroom_asset_property_set($entity->id, $name, $value);
+    }
+  }
+}
+
+/**
+ * Implements hook_entity_delete().
+ */
+function growroom_asset_property_entity_delete($entity, $type) {
+
+  // Only act on growroom asset entities.
+  if ($type != 'growroom_asset') {
+    return;
+  }
+
+  // If for some reason the asset ID is not set, bail.
+  if (empty($entity->id)) {
+    return;
+  }
+
+  // Delete all properties of an asset when the asset is deleted.
+  db_query('DELETE FROM {growroom_asset_property} WHERE id=:id', array(':id' => $entity->id));
+}
+
+/**
+ * Implements hook_modules_uninstalled().
+ */
+function growroom_asset_property_modules_uninstalled($modules) {
+
+  // When a module is uninstalled, delete any asset properties that were
+  // maintained by it. This assumes that the module declared its properties
+  // via hook_growroom_asset_propert().
+  foreach ($modules as $module) {
+    $hook = 'growroom_asset_property';
+    if (function_exists($module . '_' . $hook)) {
+      $properties = module_invoke($module, $hook);
+      if (!empty($properties) && is_array($properties)) {
+        foreach ($properties as $property) {
+          db_query('DELETE FROM {growroom_asset_property} WHERE name = :name', array('name' => $property));
+        }
+      }
+    }
+  }
+}

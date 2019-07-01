@@ -1,0 +1,375 @@
+<?php
+/**
+ * @file
+ * Code for the Growroom Plants feature.
+ */
+
+include_once 'growroom_plants.features.inc';
+
+/**
+ * Implements hook_growroom_ui_entities().
+ */
+function growroom_plants_growroom_ui_entities() {
+  return array(
+    'growroom_asset' => array(
+      'individual' => array(
+        'label' => t('Individual'),
+        'label_plural' => t('Individuals'),
+        'view' => 'growroom_individuals',
+      ),
+    ),
+    'log' => array(
+      'growroom_repop' => array(
+        'label' => t('Repop record'),
+        'label_plural' => t('Repop records'),
+        'view' => 'growroom_log_repop',
+        'growroom_asset' => 'individual',
+        'log_view_asset_arg' => 3,
+        'weight' => 20,
+      ),
+      'growroom_treatment' => array(
+        'label' => t('Treatment record'),
+        'label_plural' => t('Treatment records'),
+        'view' => 'growroom_log_treatment',
+        'growroom_asset' => 'individual',
+        'weight' => 20,
+      ),
+    ),
+    'taxonomy_term' => array(
+      'growroom_individual_cultivars' => array(
+        'label' => t('Cultivar'),
+        'label_plural' => t('Cultivars'),
+        'view' => 'growroom_individual_cultivars',
+        'growroom_asset' => 'individual',
+        'asset_view_arg' => 2,
+      ),      
+    ),
+  );
+}
+
+/**
+ * Implements hook_growroom_log_categories().
+ */
+function growroom_plants_growroom_log_categories() {
+
+  // Provide an "Individuals" log category.
+  return array('Individuals');
+}
+
+/**
+ * Implements hook_growroom_log_categories_populate().
+ */
+function growroom_plants_growroom_log_categories_populate($log) {
+  $categories = array();
+  if (in_array($log->type, array('growroom_repop', 'growroom_treatment'))) {
+    $categories[] = 'Individuals';
+  }
+  return $categories;
+}
+
+
+/**
+ * Implements hook_restws_field_collection_info().
+ */
+function growroom_plants_restws_field_collection_info() {
+  return array(
+    'field_growroom_individual_barcode' => array(
+      'alias' => 'barcode',
+      'label' => t('ID barcodes'),
+      'multiple' => TRUE,
+      'fields' => array(
+        'id' => array(
+          'field_name' => 'field_growroom_individual_barcode_id',
+          'field_label' => t('barcode ID'),
+          'field_type' => 'text',
+          'field_value' => 'value',        
+        ),
+      ),
+    ),
+  );
+}
+
+/**
+ * Implements hook_growroom_log_prepopulate_reference_fields().
+ */
+function growroom_plants_growroom_log_prepopulate_reference_fields($log_type) {
+
+  // Allow field_growroom_mother to be prepopulated in repop log forms.
+  if ($log_type == 'growroom_repop') {
+    return array(
+      'field_growroom_individual_mother' => array(
+        'entity_type' => 'growroom_asset',
+        'url_param' => 'growroom_asset',
+      ),
+    );
+  }
+}
+
+/**
+ * Implements hook_growroom_log_prepopulate_reference_fields_alter().
+ */
+function growroom_plants_growroom_log_prepopulate_reference_fields_alter(&$fields, $log_type) {
+
+  // Do not prepopulate field_growroom_asset in repop log forms, because that is
+  // the offspring reference field. When the "Add repop record" action is
+  // clicked, we assume that the user wants to create a repop record from the
+  // context of a mother individual. So field_growroom_mother is prepopulated instead.
+  // See growroom_plants_growroom_log_prepopulate_reference_fields() above.
+  if ($log_type == 'growroom_repop') {
+    if (!empty($fields['field_growroom_asset'])) {
+      unset($fields['field_growroom_asset']);
+    }
+  }
+}
+
+/**
+ * Implements hook_feeds_importer_default_alter().
+ */
+function growroom_plants_feeds_importer_default_alter($importers) {
+
+  // Add extra field mappings to individuals.
+  $name = 'growroom_asset_individual';
+  if (!empty($importers[$name])) {
+    $mappings = array(
+      array(
+        'source' => 'Cultivar',
+        'target' => 'field_growroom_individual_cultivar',
+        'term_search' => '0',
+        'autocreate' => 1,
+        'language' => 'und',
+      ),
+      array(
+        'source' => 'Date of repop',
+        'target' => 'field_growroom_date:start',
+        'unique' => FALSE,
+        'language' => 'und',
+      ),
+      array(
+        'source' => 'Origin',
+        'target' => 'field_growroom_individual_origin',
+        'unique' => FALSE,
+        'language' => 'und',
+      ),
+      array(
+        'source' => 'Fertility',
+        'target' => 'field_growroom_individual_fertility',
+        'unique' => FALSE,
+        'language' => 'und',
+      ),
+      array(
+        'source' => 'Supplier',
+        'target' => 'field_growroom_supplier',
+        'unique' => FALSE,
+        'language' => 'und',
+      ),
+      array(
+        'source' => 'barcode ID',
+        'target' => 'field_growroom_individual_barcode:field_growroom_individual_barcode_id',
+        'unique' => FALSE,
+        'language' => 'und',
+      ),
+    );
+    $importer_mappings =& $importers[$name]->config['processor']['config']['mappings'];
+    $importer_mappings = array_merge($importer_mappings, $mappings);
+  }
+
+  // Add/alter field mappings on repop logs.
+  $name = 'log_growroom_repop';
+  if (!empty($importers[$name])) {
+
+    // Add Mother ID mapping.
+    $mappings = array(
+      array(
+        'source' => 'Mother ID',
+        'target' => 'field_growroom_mother',
+        'unique' => FALSE,
+        'language' => 'und',
+      ),
+    );
+    $importer_mappings =& $importers[$name]->config['processor']['config']['mappings'];
+    $importer_mappings = array_merge($importer_mappings, $mappings);
+
+    // Change "Asset IDs" to "Offspring IDs".
+    foreach ($importer_mappings as &$mapping) {
+      if ($mapping['source'] == 'Asset IDs') {
+        $mapping['source'] = 'Offspring IDs';
+      }
+    }
+  }
+}
+
+/**
+ * Implements hook_feeds_tamper_default_alter().
+ */
+function growroom_plants_feeds_tamper_default_alter(&$feeds_tampers) {
+
+  // If growroom_import is not installed, bail.
+  if (!module_exists('growroom_import')) {
+    return;
+  }
+
+  // Make Cultivar required.
+  $feeds_tamper = growroom_import_feeds_tamper_plugin('growroom_asset', 'individual', 'Cultivar', 'required');
+  $feeds_tampers[$feeds_tamper->id] = $feeds_tamper;
+
+  // Convert date of repop to a Unix timestamp.
+  $feeds_tamper = growroom_import_feeds_tamper_plugin('growroom_asset', 'individual', 'Date of Repop', 'strtotime');
+  $feeds_tampers[$feeds_tamper->id] = $feeds_tamper;
+
+}
+
+/**
+ * Implements hook_entity_view_alter().
+ */
+function growroom_plants_entity_view_alter(&$build, $type) {
+
+  // If it's not a growroom_asset, or if the entity object is not available, bail.
+  if ($type != 'growroom_asset' || empty($build['#entity'])) {
+    return;
+  }
+
+  // Alias the asset variable.
+  $asset = $build['#entity'];
+
+  // If it isn't an individual asset, bail.
+  if ($asset->type != 'individual') {
+    return;
+  }
+
+  // If the individual has an inventory greater than 1, add "(average)".
+  $inventory = growroom_inventory($asset);
+  if ($inventory > 1) {
+    $output .= ' (' . t('average') . ')';
+  }
+}
+
+/**
+ * Implements hook_preprocess_field().
+ */
+function growroom_plants_preprocess_field(&$variables, $hook) {
+
+  // Only act on field_growroom_date on individual assets.
+  $element = $variables['element'];
+  if (empty($element['#field_name']) || $element['#field_name'] != 'field_growroom_date') {
+    return;
+  }
+  if (!($element['#entity_type'] == 'growroom_asset' && $element['#bundle'] == 'individual')) {
+    return;
+  }
+
+  // If the field is blank, bail.
+  if (empty($element['#items'][0]['value']) || empty($variables['items'][0]['#markup'])) {
+    return;
+  }
+
+  // Get the asset ID.
+  if (empty($element['#object']->id)) {
+    return;
+  }
+  $asset_id = $element['#object']->id;
+
+  // Search for this asset's repop log.
+  $query = new EntityFieldQuery();
+  $query->entityCondition('entity_type', 'log')
+    ->entityCondition('bundle', 'growroom_repop')
+    ->fieldCondition('field_growroom_asset', 'target_id', $asset_id);
+  $result = $query->execute();
+
+  // Load only the first log.
+  $log = NULL;
+  if (isset($result['log'])) {
+    $log_ids = array_keys($result['log']);
+    $log_id = reset($log_ids);
+    $log = log_load($log_id);
+  }
+
+  // If a log exists, link the repop date field to it.
+  if (!empty($log)) {
+    $repopdate = $variables['items'][0]['#markup'];
+    $log_uri = entity_uri('log', $log);
+    $variables['items'][0]['#markup'] = '<a href="' . url($log_uri['path']) . '">' . $repopdate . '</a>';
+  }
+}
+
+/**
+ * Implements hook_entity_insert().
+ */
+function growroom_plants_entity_insert($entity, $type) {
+
+  // If this is a repop log, sync offspring.
+  if ($type == 'log' && $entity->type == 'growroom_repop') {
+    growroom_plants_repop_log_sync($entity);
+  }
+}
+
+/**
+ * Implements hook_entity_update().
+ */
+function growroom_plants_entity_update($entity, $type) {
+
+  // If this is a repop log, sync offspring.
+  if ($type == 'log' && $entity->type == 'growroom_repop') {
+    growroom_plants_repop_log_sync($entity);
+  }
+}
+
+/**
+ * Sync information in offspring individuals if a repop log is saved.
+ *
+ * @param Log $log
+ *   The log entity that is being created or updated.
+ */
+function growroom_plants_repop_log_sync($log) {
+
+  // Load log entity metadata wrapper.
+  $log_wrapper = entity_metadata_wrapper('log', $log);
+
+  // Get the mother individual asset ID from the repop log.
+  $mother_id = $log_wrapper->field_growroom_mother->getIdentifier();
+
+  // Iterate through the offspring assets.
+  foreach ($log_wrapper->field_growroom_asset->getIterator() as $delta => $offspring_wrapper) {
+
+    // We will only save the offspring asset if we need to.
+    $save = FALSE;
+
+    // If the individual's date of repop does not match the timestamp of the repop
+    // log, sync it.
+    if ($offspring_wrapper->field_growroom_date->value() != $log->timestamp) {
+      $offspring_wrapper->field_growroom_date->set($log->timestamp);
+      drupal_set_message(t('<a href="!asset_path">@asset_label</a>\'s date of repop has been updated to match their repop log.', array('!asset_path' => url('growroom/asset/' . $offspring_wrapper->getIdentifier()), '@asset_label' => $offspring_wrapper->label())));
+      $save = TRUE;
+    }
+
+    // If a mother is specified, make sure that it is listed as one of the
+    // offspring's parents.
+    if (!empty($mother_id)) {
+
+      // Iterate through the offspring's parents to see if the mother is listed.
+      $mother_exists = FALSE;
+      foreach ($offspring_wrapper->field_growroom_parent->getIterator() as $delta => $parent_wrapper) {
+        if ($parent_wrapper->getIdentifier() == $mother_id) {
+          $mother_exists = TRUE;
+        }
+      }
+
+      // If the mother is not one of the offspring's parents, add her.
+      if (!$mother_exists) {
+        $ofspring_wrapper->field_growroom_parent[] = $mother_id;
+        $message_args = array(
+          '!mother_path' => url('growroom/asset/' . $log_wrapper->field_growroom_mother->getIdentifier()),
+          '@mother_label' => $log_wrapper->field_growroom_mother->label(),
+          '!offspring_path' => url('growroom/asset/' . $offspring_wrapper->getIdentifier()),
+          '@offspring_label' => $offspring_wrapper->label(),
+        );
+        drupal_set_message(t('<a href="!mother_path">@mother_label</a> was added to <a href="!offspring_path">@offspring_label</a>\'s parents.', $message_args));
+        $save = TRUE;
+      }
+    }
+
+    // Save the asset, if necessary.
+    if ($save) {
+      $offspring_wrapper->save();
+    }
+  }
+}

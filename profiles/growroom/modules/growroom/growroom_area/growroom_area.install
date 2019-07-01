@@ -1,0 +1,32 @@
+<?php
+/**
+ * @file
+ * Growroom area install.
+ */
+
+/**
+ * Update allowed values in the growroom area types field.
+ */
+function growroom_area_update_7000() {
+
+  // Load the growroom area type field info.
+  $area_type_field = field_info_field('field_growroom_area_type');
+
+  // Set the allowed values to an empty array.
+  $area_type_field['settings']['allowed_values'] = array();
+
+  // Point to the new allowed values function.
+  $area_type_field['settings']['allowed_values_function'] = 'growroom_area_type_options';
+
+  // Update the field.
+  field_update_field($area_type_field);
+}
+/**
+ * Install the Growroom Area Types module.
+ */
+function growroom_area_update_7001(&$sandbox) {
+  $module = 'growroom_area_types';
+  if (!module_exists($module)) {
+    module_enable(array($module));
+  }
+}

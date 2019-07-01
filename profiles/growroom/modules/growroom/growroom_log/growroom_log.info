@@ -1,0 +1,28 @@
+name = Growroom Log
+description = Provides integration with the Log module.
+core = 7.x
+package = growroomOS
+dependencies[] = ctools
+dependencies[] = entity
+dependencies[] = entity_token
+dependencies[] = entityreference
+dependencies[] = growroom_access
+dependencies[] = growroom_area
+dependencies[] = growroom_asset
+dependencies[] = growroom_fields
+dependencies[] = growroom_map
+dependencies[] = growroom_map_kml
+dependencies[] = growroom_term
+dependencies[] = features
+dependencies[] = views
+dependencies[] = views_data_export
+features[ctools][] = views:views_default:3.0
+features[features_api][] = api:2
+features[views_view][] = growroom_log
+files[] = views/handlers/growroom_log_handler_relationship_asset.inc
+
+; Information added by Drupal.org packaging script on 2018-11-14
+version = "7.x-0.01 beta"
+core = "7.x"
+project = "growroom"
+datestamp = "1542218112"

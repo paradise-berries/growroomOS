@@ -1,0 +1,140 @@
+<?php
+/**
+ * Growroom Area hooks implemented by the Growroom UI module.
+ */
+
+/**
+ * Implements hook_growroom_area_details().
+ */
+function growroom_ui_growroom_area_details($id) {
+
+  // Start a render array.
+  $output = array();
+
+  // Add links to lists of assets and logs in the area.
+  $entity_types = array(
+    'growroom_asset' => array(
+      'label' => t('Assets'),
+      'weight' => -50,
+    ),
+    'log' => array(
+      'label' => t('Logs'),
+      'weight' => -40,
+    ),
+  );
+  foreach ($entity_types as $type => $info) {
+
+    // Get area links for the entity type.
+    $area_links = growroom_ui_area_links($id, $type);
+
+    // If there are none, skip it.
+    if (empty($area_links)) {
+      continue;
+    }
+
+    // Create variables for an item list.
+    $variables = array(
+      'items' => $area_links,
+      'attributes' => array(),
+    );
+
+    // Render the links as markup with a title.
+    $output[$type . '_links'] = array(
+      '#type' => 'markup',
+      '#markup' => '<strong>' . $info['label'] . '</strong>' . theme('item_list', $variables),
+      '#weight' => $info['weight'],
+    );
+  }
+
+  // Return the render array.
+  return $output;
+}
+
+/**
+ * Generate area links for growroom_asset or log entity types.
+ *
+ * @param int $id
+ *   The area id.
+ * @param string $entity_type
+ *   The entity type to general links for. Currently only 'growroom_asset' and
+ *   'log' are supported.
+ *
+ * @return array
+ *   Returns an array of links.
+ */
+function growroom_ui_area_links($id, $entity_type) {
+
+  // Start an empty array of links.
+  $links = array();
+
+  // Load entity UI info.
+  $ui_info = growroom_ui_entities();
+
+  // Generate links for the entity type.
+  if (!empty($ui_info[$entity_type])) {
+    foreach ($ui_info[$entity_type] as $bundle => $info) {
+
+      // If a View is not available, skip it.
+      if (empty($info['view'])) {
+        continue;
+      }
+
+      // If the entity is a log, and it doesn't apply to areas, skip it.
+      if ($entity_type == 'log' && (empty($info['areas']) || $info['areas'] !== TRUE)) {
+        continue;
+      }
+
+      // Determine the position of the area ID argument in the View, and build
+      // the arguments array accordingly. If the area ID is in the second
+      // argument position, then we assume that asset ID is the first argument,
+      // and we set that to 'all' to include all assets.
+      $args = array($id);
+      $area_argument_position = growroom_ui_views_area_argument_position($entity_type, $bundle);
+      if ($area_argument_position == 2) {
+        array_unshift($args, 'all');
+      }
+
+      // Load the View and generate a preview to count rows.
+      $view = views_get_view($info['view']);
+      $view->preview('default', $args);
+
+      // If there are no results, skip it.
+      if (empty($view->total_rows)) {
+        continue;
+      }
+
+      // Build the View page path with arguments.
+      $path = growroom_ui_view_page_path($info['view']);
+      foreach ($args as $arg) {
+        $path .= '/' . $arg;
+      }
+
+      // Build a link.
+      $link = array(
+        'title' => $info['label_plural'] . ': ' . $view->total_rows,
+        'href' => $path,
+      );
+
+      // Build an array of entity IDs included in the View.
+      $entity_ids = array();
+      foreach ($view->result as $delta => $record) {
+        $entity_ids[] = $record->id;
+      }
+
+      // Allow other modules to modify the link. Pass in some additional info
+      // about the entities it represents.
+      $entity_info = array(
+        'entity_type' => $entity_type,
+        'bundle' => $bundle,
+        'entity_ids' => $entity_ids,
+      );
+      drupal_alter('growroom_area_link', $link, $entity_info);
+
+      // Add the link.
+      $links[] = l($link['title'], $link['href']);
+    }
+  }
+
+  // Return the links.
+  return $links;
+}

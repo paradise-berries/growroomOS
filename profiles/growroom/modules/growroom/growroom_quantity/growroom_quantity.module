@@ -1,0 +1,360 @@
+<?php
+/**
+ * @file
+ * Growroom quantity module.
+ */
+
+// Include Features code.
+include_once 'growroom_quantity.features.inc';
+
+/**
+ * Implements hook_permission().
+ */
+function growroom_quantity_permission() {
+  $perms = array(
+    'administer growroom_quantity module' => array(
+      'title' => t('Administer growroom quantity module'),
+    ),
+  );
+  return $perms;
+}
+
+/**
+ * Implements hook_growroom_access_perms().
+ */
+function growroom_quantity_growroom_access_perms($role) {
+
+  // Assemble a list of entity types provided by this module.
+  $types = array(
+    'taxonomy' => array(
+      'growroom_quantity_units',
+    ),
+  );
+
+  // Grant different CRUD permissions based on the role.
+  $perms = array();
+  switch ($role) {
+
+    // Growroom Manager and Worker
+    case 'Growroom Manager':
+    case 'Growroom Worker':
+      $perms = growroom_access_entity_perms($types);
+      break;
+
+    // Growroom Viewer
+    case 'Growroom Viewer':
+      $perms = growroom_access_entity_perms($types, array('view'));
+      break;
+  }
+
+  // If the role is "Growroom Manager", grant access to quantity configuration.
+  if ($role == 'Growroom Manager') {
+    $perms[] = 'administer growroom_quantity module';
+  }
+
+  return $perms;
+}
+
+/**
+ * Implements hook_menu().
+ */
+function growroom_quantity_menu() {
+
+  // Quantity configuration form.
+  $items['admin/config/growroom/quantity'] = array(
+    'title' => 'Quantity',
+    'description' => 'Quantity configuration settings.',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('growroom_quantity_settings_form'),
+    'access arguments' => array('administer growroom_quantity module'),
+  );
+
+  return $items;
+}
+
+/**
+ * Quantity settings form.
+ */
+function growroom_quantity_settings_form($form, &$form_state) {
+
+  // Metric or US/Imperial.
+  $form['growroom_quantity_unit_system'] = array(
+    '#type' => 'radios',
+    '#title' => t('System of measurement'),
+    '#description' => t('Select the system of measurement you would like to use in growroomOS. Changing this setting after data has been entered is not recommended.'),
+    '#options' => array(
+      'metric' => t('Metric'),
+      'us' => t('US/Imperial'),
+    ),
+    '#default_value' => growroom_quantity_system_of_measurement(),
+  );
+
+  // Return it as a system settings form.
+  return system_settings_form($form);
+}
+
+/**
+ * Helper function for loading the default system of measurement.
+ *
+ * @return string
+ *   Returns either 'metric' or 'us' (defaults to 'metric').
+ */
+function growroom_quantity_system_of_measurement() {
+  return variable_get('growroom_quantity_unit_system', 'metric');
+}
+
+/**
+ * Define information about available quantity measures.
+ *
+ * @return array
+ *   Returns an array of measure information.
+ */
+function growroom_quantity_measures() {
+  return array(
+    'count' => array(
+      'label' => t('Count'),
+    ),
+    'length' => array(
+      'label' => t('Length'),
+    ),
+    'weight' => array(
+      'label' => t('Weight'),
+    ),
+    'area' => array(
+      'label' => t('Area'),
+    ),
+    'volume' => array(
+      'label' => t('Volume'),
+    ),
+    'time' => array(
+      'label' => t('Time'),
+    ),
+    'temperature' => array(
+      'label' => t('Temperature'),
+    ),
+    'humidity' => array(
+      'label' => t('Humidity'),   
+    ),
+    'photosynthetic_photon_flux_density' => array(
+      'label' => t('Photosynthetic Photon Flux Density'),  
+    ),
+    'daily_light_integral' => array(
+      'label' => t('Daily Light Integral'),  
+    ),
+    'wind_speed' => array(
+      'label' => t('Wind Speed'),
+    ),
+    'acidity' => array(
+      'label' => t('Acidity'),
+    ),
+    'electrical_conductivity' => array(
+      'label' => t('Electrical Conductivity'),      
+    ),
+    'water_content' => array(
+      'label' => t('Water content'),
+    ),
+    'mineral_salt_content' => array(
+      'label' => t('Mineral Salt Content'),
+    ),
+    'sugar_content' => array(
+      'label' => t('Sugar Content'),
+    ),
+    'nitrate_content' => array(
+      'label' => t('Nitrate content'),
+    ),
+    'value' => array(
+      'label' => t('Value'),
+    ),
+    'rating' => array(
+      'label' => t('Rating'),
+    ),
+    'ratio' => array(
+      'label' => t('Ratio'),
+    ),
+    'probability' => array(
+      'label' => t('Probability'),
+    ),
+  );
+}
+
+/**
+ * Define available options for the Measure field.
+ */
+function growroom_quantity_measure_options() {
+
+  // Start an empty options array.
+  $options = array();
+
+  // Load information about measures.
+  $measures = growroom_quantity_measures();
+
+  // Iterate through the measures and build a list of options.
+  foreach ($measures as $measure => $data) {
+    $options[$measure] = $data['label'];
+  }
+
+  // Return the array of options.
+  return $options;
+}
+
+/**
+ * Return an array of standard unit names for given measures.
+ *
+ * @todo
+ *   This is a first step towards more complete unit management in growroomOS. It
+ *   is provided as a central helper function for other modules to use as a
+ *   placeholder until then.
+ *
+ * @param string $measure
+ *   An optional measure to filter by.
+ *   See available options in growroom_quantity_measures() above.
+ *
+ * @return array
+ *   Returns an array of standard unit strings for a given measure. Or an array
+ *   of all unit strings, organized into sub-arrays keyed by measure.
+ */
+function growroom_quantity_units($measure = '') {
+
+  // Load the available measures.
+  $measures = growroom_quantity_measures();
+
+  // Build an empty array of quantity unit sub-arrays, keyed by measure.
+  $units = array();
+  foreach ($measures as $name => $info) {
+    $units[$name] = array();
+  }
+
+  // Look up the system of measurement.
+  $system = growroom_quantity_system_of_measurement();
+
+  // Depending on the system of measurement, add unit options to measures.
+  if ($system == 'metric') {
+
+    // Length units.
+    $units['length'][] = 'km';
+    $units['length'][] = 'm';
+    $units['length'][] = 'cm';
+    $units['length'][] = 'mm';
+
+    // Weight units.
+    $units['weight'][] = 'kg';
+    $units['weight'][] = 'gr';
+    $units['weight'][] = 'mg';
+
+    // Area units.
+    $units['area'][] = 'hec';
+    $units['area'][] = 'm2';
+
+    // Volume units.
+    $units['volume'][] = 'kl';
+    $units['volume'][] = 'l';
+    $units['volume'][] = 'ml';
+
+    // Temperature units.
+    $units['temperature'][] = 'C';
+    
+    // Humidity units.
+    $units['humidity'][] = '%';
+    
+   // Air Speed units.
+    $units['air_speed'][] = 'm/sec';
+    
+   // pH units.
+    $units['pH'][] = 'pH';
+    
+   // EC units.
+    $units['EC'][] = 'mS/cm';
+    
+   // Light Intensity units.
+    $units['PPFD'][] = 'umols/m2s';
+    
+   // Light Color units.
+    $units['Kelvin'][] = 'CCTC';
+    
+   // Light Duration units.
+    $units['DLI'][] = 'DLI';
+    
+  }
+  elseif ($system == 'us') {
+
+    // Length units.
+    $units['length'][] = 'mi';
+    $units['length'][] = 'ft';
+    $units['length'][] = 'in.';
+
+    // Weight units.
+    $units['weight'][] = 'tons';
+    $units['weight'][] = 'lbs';
+    $units['weight'][] = 'oz';
+
+    // Area units.
+    $units['area'][] = 'acres';
+    $units['area'][] = 'sqft';
+
+    // Volume units.
+    $units['volume'][] = 'cubic yards';
+    $units['volume'][] = 'cubic feet';
+    $units['volume'][] = 'gallons';
+    $units['volume'][] = 'quarts';
+    $units['volume'][] = 'cups';
+
+    // Temperature units.
+    $units['temperature'][] = 'F';
+    
+    // Humidity units.
+    $units['humidity'][] = '%';
+    
+   // Air Speed units.
+    $units['air_speed'][] = 'ft/sec';
+    
+   // pH units.
+    $units['pH'][] = 'pH';
+    
+   // EC units.
+    $units['EC'][] = 'mS/cm';
+    
+   // Light Intensity units.
+    $units['PPFD'][] = 'umols/m2s';
+    
+   // Light Color units.
+    $units['Kelvin'][] = 'CCTC';
+    
+   // Light Duration units.
+    $units['DLI'][] = 'mols/m2';
+    
+  }
+
+
+  // Time units are independent of system.
+  $units['time'][] = 'years';
+  $units['time'][] = 'months';
+  $units['time'][] = 'weeks';
+  $units['time'][] = 'days';
+  $units['time'][] = 'hours';
+  $units['time'][] = 'minutes';
+  $units['time'][] = 'seconds';
+
+  // If a measure is specified, only return units for that measure.
+  if (!empty($measure)) {
+    if (!empty($units[$measure])) {
+      return $units[$measure];
+    }
+    else {
+      return array();
+    }
+  }
+
+  // Return all quantity units.
+  return $units;
+}
+
+/**
+ * Implements hook_preprocess_field().
+ */
+function growroom_quantity_preprocess_field(&$vars) {
+
+  // Add quantity CSS when a Quantity field is displayed.
+  if (!empty($vars['element']['#field_name']) && $vars['element']['#field_name'] == 'field_growroom_quantity') {
+    drupal_add_css(drupal_get_path('module', 'growroom_quantity') . '/growroom_quantity.css');
+  }
+}

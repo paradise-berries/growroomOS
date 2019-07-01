@@ -1,0 +1,43 @@
+<?php
+
+/**
+ * @file
+ * Growroom asset property install.
+ */
+
+/**
+ * Implements hook_schema().
+ */
+function growroom_asset_property_schema() {
+  $schema['growroom_asset_property'] = array(
+    'description' => 'Growroom asset property key/value store.',
+    'fields' => array(
+      'id' => array(
+        'description' => 'Growroom asset ID',
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+        'default' => 0,
+      ),
+      'name' => array(
+        'description' => 'Property name',
+        'type' => 'varchar',
+        'length' => 128,
+        'not null' => TRUE,
+        'default' => '',
+      ),
+      'value' => array(
+        'description' => 'Property value',
+        'type' => 'varchar',
+        'length' => 128,
+        'not null' => TRUE,
+        'default' => '',
+      ),
+    ),
+    'primary key' => array('id', 'name'),
+    'indexes' => array(
+      'namevalue' => array('name', 'value'),
+    ),
+  );
+  return $schema;
+}

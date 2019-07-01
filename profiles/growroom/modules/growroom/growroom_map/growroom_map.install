@@ -1,0 +1,31 @@
+<?php
+/**
+ * @file
+ * Growroom map install.
+ */
+
+/**
+ * Implements hook_uninstall().
+ */
+function growroom_map_uninstall() {
+
+  // Delete variables.
+  variable_del('growroom_map_show');
+  variable_del('growroom_map_default_base_layer');
+  variable_del('growroom_map_google_api_key');
+}
+
+/**
+ * Copy the Google Maps API key into the new configuration variable.
+ */
+function growroom_map_update_7000(&$sandbox) {
+
+  // Load the Google Hybrid source.
+  $source = \Drupal\openlayers\Openlayers::load('Source', 'growroom_map_source_google_hybrid');
+
+  // If an API key is set, copy it to the variable.
+  $key = $source->getOption('key');
+  if (!empty($key)) {
+    variable_set('growroom_map_google_api_key', $key);
+  }
+}

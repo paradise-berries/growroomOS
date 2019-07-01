@@ -1,0 +1,11 @@
+name = Growroom MapKnitter
+description = Provides integration with Public Lab's MapKnitter.org.
+core = 7.x
+package = growroomOS
+dependencies[] = growroom_map
+
+; Information added by Drupal.org packaging script on 2018-11-14
+version = "7.x-0.01 beta"
+core = "7.x"
+project = "growroom"
+datestamp = "1542218112"

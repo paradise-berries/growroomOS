@@ -1,0 +1,15 @@
+name = Growroom Import
+description = Provides a framework for creating CSV importers in growroomOS.
+core = 7.x
+package = growroomOS
+dependencies[] = growroom_asset
+dependencies[] = growroom_fields
+dependencies[] = feeds
+dependencies[] = feeds_tamper
+dependencies[] = log
+
+; Information added by Drupal.org packaging script on 2018-11-14
+version = "7.x-0.01 besta"
+core = "7.x"
+project = "growroom"
+datestamp = "1542218112"

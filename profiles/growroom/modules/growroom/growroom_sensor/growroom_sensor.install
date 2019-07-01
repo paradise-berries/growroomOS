@@ -1,0 +1,43 @@
+<?php
+
+/**
+ * @file
+ * Growroom sensor install.
+ */
+
+/**
+ * Implements hook_schema().
+ */
+function growroom_sensor_schema() {
+  $schema['growroom_sensor'] = array(
+    'description' => 'Growroom sensor',
+    'fields' => array(
+      'id' => array(
+        'description' => 'Asset ID',
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+        'default' => 0,
+      ),
+      'type' => array(
+        'description' => 'Sensor type',
+        'type' => 'varchar',
+        'length' => '255',
+        'not null' => FALSE,
+      ),
+      'settings' => array(
+        'description' => 'Sensor settings',
+        'type' => 'text',
+        'size' => 'big',
+        'serialize' => TRUE,
+      ),
+    ),
+    'unique keys' => array(
+      'id' => array('id'),
+    ),
+    'indexes' => array(
+      'type' => array('type'),
+    ),
+  );
+  return $schema;
+}

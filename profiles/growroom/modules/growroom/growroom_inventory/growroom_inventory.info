@@ -1,0 +1,34 @@
+name = Growroom Inventory
+description = Provides inventory management functionality for growroom assets.
+core = 7.x
+package = growroomOS
+dependencies[] = ctools
+dependencies[] = entityreference
+dependencies[] = entityreference_view_widget
+dependencies[] = growroom_group
+dependencies[] = growroom_log
+dependencies[] = growroom_map_kml
+dependencies[] = features
+dependencies[] = field_collection
+dependencies[] = fraction
+dependencies[] = list
+dependencies[] = options
+dependencies[] = views
+dependencies[] = views_data_export
+features[ctools][] = views:views_default:3.0
+features[features_api][] = api:2
+features[field_base][] = field_growroom_inventory
+features[field_base][] = field_growroom_inventory_asset
+features[field_base][] = field_growroom_inventory_value
+features[field_instance][] = field_collection_item-field_growroom_inventory-field_growroom_inventory_asset
+features[field_instance][] = field_collection_item-field_growroom_inventory-field_growroom_inventory_value
+features[views_view][] = growroom_inventory_entityreference_view
+features[views_view][] = growroom_inventory_log
+files[] = views/handlers/growroom_inventory_handler_field_asset_inventory_value.inc
+files[] = views/handlers/growroom_inventory_handler_filter_asset_type.inc
+
+; Information added by Drupal.org packaging script on 2018-11-14
+version = "7.x-0.01 beta"
+core = "7.x"
+project = "growroom"
+datestamp = "1542218112"

@@ -1,0 +1,62 @@
+name = growroomOS
+distribution_name = growroomOS
+description = Growroom management system.
+core = 7.x
+
+; Ensure that usage statistics are sent to drupal.org
+hidden = FALSE
+
+; Auto-select profile during installation.
+exclusive = TRUE
+
+; -----------------------------------------------------------------------------
+; Dependencies
+; -----------------------------------------------------------------------------
+
+; Core
+dependencies[] = block
+dependencies[] = contextual
+dependencies[] = field
+dependencies[] = field_sql_storage
+dependencies[] = filter
+dependencies[] = help
+dependencies[] = menu
+dependencies[] = node
+dependencies[] = path
+dependencies[] = rdf
+dependencies[] = system
+dependencies[] = taxonomy
+dependencies[] = user
+dependencies[] = update
+dependencies[] = dblog
+
+; Contrib
+dependencies[] = exif_orientation
+dependencies[] = jquery_update
+dependencies[] = module_filter
+dependencies[] = navbar
+dependencies[] = pathauto_entity
+
+; Growroom
+dependencies[] = growroom_access
+dependencies[] = growroom_api
+dependencies[] = growroom_calendar
+dependencies[] = growroom_constraint
+dependencies[] = growroom_dashboard
+dependencies[] = growroom_help
+dependencies[] = growroom_import
+dependencies[] = growroom_log
+dependencies[] = growroom_log_activity
+dependencies[] = growroom_log_harvest
+dependencies[] = growroom_log_input
+dependencies[] = growroom_log_observation
+dependencies[] = growroom_menu
+dependencies[] = growroom_people
+dependencies[] = growroom_quick
+dependencies[] = growroom_ui
+
+; Information added by Drupal.org packaging script on 2018-11-14
+version = "7.x-1.0-rc1"
+core = "7.x"
+project = "growroom"
+datestamp = "1542218112"

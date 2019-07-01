@@ -1,0 +1,126 @@
+<?php
+/**
+ * @file
+ * Code for the Growroom GrowMedia feature.
+ */
+
+include_once 'growroom_growmedia.features.inc';
+
+/**
+ * Implements hook_growroom_ui_entities().
+ */
+function growroom_growmedia_growroom_ui_entities() {
+  return array(
+    'growroom_asset' => array(
+      'growmedia' => array(
+        'label' => t('GrowMedia'),
+        'label_plural' => t('GrowMedia'),
+        'view' => 'growroom_growmedia',
+      ),
+    ),
+    'log' => array(
+      'growroom_substrate' => array(
+        'label' => t('Substrate'),
+        'label_plural' => t('Substrate'),
+        'view' => 'growroom_log_substrate',
+        'growroom_asset' => 'growmedia',
+        'weight' => 20,
+      ),
+    ),
+  );
+}
+
+/**
+ * Implements hook_growroom_log_categories().
+ */
+function growroom_growmedia_growroom_log_categories() {
+
+  // Provide an "GrowMedia" log category.
+  return array('GrowMedia');
+}
+
+/**
+ * Implements hook_growroom_log_categories_populate().
+ */
+function growroom_growmedia_growroom_log_categories_populate($log) {
+  $categories = array();
+  if ($log->type == 'growroom_substrate') {
+    $categories[] = 'GrowMedia';
+  }
+  return $categories;
+}
+
+/**
+ * Implements hook_feeds_importer_default_alter().
+ */
+function growroom_growmedia_feeds_importer_default_alter($importers) {
+
+  // Add extra field mappings to growmedia.
+  $name = 'growroom_asset_growmedia';
+  if (!empty($importers[$name])) {
+    $mappings = array(
+      array(
+        'source' => 'Alias',
+        'target' => 'field_growroom_alias',
+        'unique' => FALSE,
+        'language' => 'und',
+      ),
+      array(
+        'source' => 'Brand',
+        'target' => 'field_growroom_brand',
+        'unique' => FALSE,
+        'language' => 'und',
+      ),
+      array(
+        'source' => 'Source',
+        'target' => 'field_growroom_source',
+        'unique' => FALSE,
+        'language' => 'und',
+      ),
+      array(
+        'source' => 'Type',
+        'target' => 'field_growroom_type',
+        'unique' => FALSE,
+        'language' => 'und',
+      ),
+      array(
+        'source' => 'Specifications',
+        'target' => 'field_growroom_specifications',
+        'unique' => FALSE,
+        'language' => 'und',
+      ),
+      array(
+        'source' => 'Purpose',
+        'target' => 'field_growroom_purpose',
+        'unique' => FALSE,
+        'language' => 'und',
+      ),  
+      array(
+        'source' => 'Method',
+        'target' => 'field_growroom_method',
+        'unique' => FALSE,
+        'language' => 'und',
+      ),
+      array(
+        'source' => 'Storage',
+        'target' => 'field_growroom_storage',
+        'unique' => FALSE,
+        'language' => 'und',
+      ),
+      array(
+        'source' => 'Shelf Life',
+        'target' => 'field_growroom_shelf_life',
+        'unique' => FALSE,
+        'language' => 'und',
+      ),  
+      array(
+        'source' => 'Warnings',
+        'target' => 'field_growroom_warnings',
+        'unique' => FALSE,
+        'language' => 'und',
+      ),
+    );
+    $importer_mappings =& $importers[$name]->config['processor']['config']['mappings'];
+    $importer_mappings = array_merge($importer_mappings, $mappings);
+  }
+}

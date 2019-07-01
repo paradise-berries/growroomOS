@@ -1,0 +1,20 @@
+name = Growroom Tour
+description = Provides tours of the growroomOS system using the Bootstrap Tour module.
+core = 7.x
+package = growroomOS
+dependencies[] = bootstrap_tour
+dependencies[] = entity
+dependencies[] = growroom_area
+dependencies[] = growroom_asset
+dependencies[] = growroom_fields
+dependencies[] = growroom_map
+features[bootstrap_tour][] = growroom_areas
+features[bootstrap_tour][] = growroom_intro
+features[bootstrap_tour][] = growroom_plantings
+features[features_api][] = api:2
+
+; Information added by Drupal.org packaging script on 2018-11-14
+version = "7.x-0.01 beta"
+core = "7.x"
+project = "growroom"
+datestamp = "1542218112"

@@ -1,0 +1,99 @@
+<?php
+/**
+ * @file
+ * Growroom help module.
+ */
+
+/**
+ * Implements hook_help().
+ */
+function growroom_help_help($path, $args) {
+  switch ($path) {
+
+    // Help for the /growroom/help path.
+    case 'growroom/help':
+      return '<p>' . t('This page contains links to helpful growroomOS resources. For more information, visit <a href="https://growroomOS.org">growroomOS.org</a>.') . '</p>';
+  }
+}
+
+/**
+ * Implements hook_permission().
+ */
+function growroom_help_permission() {
+  return array(
+    'access growroom help' => array(
+      'title' => t('Access growroom help pages'),
+      'description' => t('Access the growroom help pages.'),
+    ),
+  );
+}
+
+/**
+ * Implements hook_growroom_access_perms().
+ */
+function growroom_help_growroom_access_perms($role) {
+
+  // Access growroom help.
+  return array('access growroom help');
+}
+
+/**
+ * Implements hook_menu().
+ */
+function growroom_help_menu() {
+  $items['growroom/help'] = array(
+    'title' => 'Help',
+    'page callback' => 'growroom_help_page_callback',
+    'access arguments' => array('access growroom help'),
+    'type' => MENU_NORMAL_ITEM,
+    'menu_name' => 'user-menu',
+    'weight' => 100,
+  );
+  return $items;
+}
+
+/**
+ * Growroom help page callback.
+ */
+function growroom_help_page_callback() {
+
+  // Set the title so it is different than the menu item.
+  drupal_set_title(t('growroomOS Resources'));
+
+  // Create output array.
+  $output = array();
+
+  // Allow other modules to add output.
+  $contrib_output = module_invoke_all('growroom_help_page');
+  $output = array_merge($output, $contrib_output);
+
+  // Return the output, imploded into a string.
+  return implode('', $output);
+}
+
+/**
+ * Implements hook_growroom_help_page().
+ */
+function growroom_help_growroom_help_page() {
+  $output = array();
+
+  // Add general text.
+  $output[] = '<p>' . l('growroomOS', 'https://growroomos.org') . ' is built and maintained
+  by a community of volunteers. Some growroomOS community resources are listed
+  below.</p>';
+
+  // Add a link to the growroomOS documentation.
+  $output[] = '<h3>Documentation</h3><p>' . l('https://growroomOS.org', 'https://growroomOS.org') . '</h3>';
+
+  // Add a link to the growroomOS chat rooms.
+  $chat_rooms = array(
+    l('#growroomOS Riot.im channel on Matrix.org', 'https://riot.im/app/#/room/#growroomOS:matrix.org'),
+    l('#growroomOS IRC channel on Freenode', 'http://webchat.freenode.net/?channels=#growroomOS'),
+  );
+  $output[] = '<h3>Community Chat</h3><p>' . theme('item_list', array('items' => $chat_rooms)) . '</p>';
+
+  // Add a link to the growroomOS distribution issue queue.
+  $output[] = '<h3>Issue Queues</h3><p>' . l('https://drupal.org/project/issues/growroom', 'https://drupal.org/project/issues/growroom') . '</p>';
+
+  return $output;
+}

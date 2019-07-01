@@ -1,0 +1,46 @@
+<?php
+/**
+ * @file
+ * Code for the Growroom Log: Harvest feature.
+ */
+
+// Include Features code.
+include_once 'growroom_log_harvest.features.inc';
+
+/**
+ * Implements hook_growroom_ui_entities().
+ */
+function growroom_log_harvest_growroom_ui_entities() {
+  return array(
+    'log' => array(
+      'growroom_harvest' => array(
+        'label' => t('Harvest'),
+        'label_plural' => t('Harvests'),
+        'view' => 'growroom_log_harvest',
+        'areas' => TRUE,
+        'weight' => 80,
+      ),
+    ),
+  );
+}
+
+/**
+ * Implements hook_feeds_importer_default_alter().
+ */
+function growroom_log_harvest_feeds_importer_default_alter(&$importers) {
+
+  // Add extra field mappings to harvests.
+  $name = 'log_growroom_harvest';
+  if (!empty($importers[$name])) {
+    $mappings = array(
+      array(
+        'source' => 'Lot number',
+        'target' => 'field_growroom_lot_number',
+        'unique' => FALSE,
+        'language' => 'und',
+      ),
+    );
+    $importer_mappings =& $importers[$name]->config['processor']['config']['mappings'];
+    $importer_mappings = array_merge($importer_mappings, $mappings);
+  }
+}

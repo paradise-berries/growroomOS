@@ -1,0 +1,77 @@
+<?php
+/**
+ * @file
+ * Growroom light test install.
+ */
+
+/**
+ * Implements hook_update_dependencies().
+ */
+function growroom_light_test_update_dependencies() {
+
+  // Ensure that this modules 7000 update runs before the 7000 update of
+  // growroom_light. We will delete a field instance in our update, and they will
+  // delete the field base in theirs.
+  $dependencies['growroom_light'][7000] = array(
+    'growroom_light_test' => 7000,
+  );
+
+  return $dependencies;
+}
+
+/**
+ * Change "Light Types" to "Light Names".
+ */
+function growroom_light_test_update_7000(&$sandbox) {
+
+  // Start by reverting the field_instance component of this module, and the
+  // field_base component of growroom_light so that the new field is available
+  $features = array(
+    'growroom_light' => array('field_base'),
+    'growroom_light_test' => array('field_instance'),
+  );
+  features_revert($features);
+
+  // Migrate data from old field to new field.
+  if (db_table_exists('field_data_field_growroom_light_types') && db_table_exists('field_data_field_growroom_light_names')) {
+    db_query('INSERT INTO {field_data_field_growroom_light_names} SELECT * FROM {field_data_field_growroom_light_types}');
+  }
+  if (db_table_exists('field_revision_field_growroom_light_types') && db_table_exists('field_revision_field_growroom_light_names')) {
+    db_query('INSERT INTO {field_revision_field_growroom_light_names} SELECT * FROM {field_revision_field_growroom_light_types}');
+  }
+
+  // Delete the old field instance.
+  $field = field_info_instance('log', 'field_growroom_light_types', 'growroom_light_test');
+  field_delete_instance($field);
+}
+
+/**
+ * Migrate light test sample points to field_growroom_geofield.
+ */
+function growroom_light_test_update_7001(&$sandbox) {
+
+  // Define table mappings.
+  $table_mappings = array(
+    'field_data_field_growroom_light_sample_points' => 'field_data_field_growroom_geofield',
+    'field_revision_field_growroom_light_sample_points' => 'field_revision_field_growroom_geofield',
+  );
+
+  // Check to be sure that the tables exist. If not, bail.
+  foreach ($table_mappings as $old => $new) {
+    $tables = array($old, $new);
+    foreach ($tables as $table) {
+      if (!db_table_exists($table)) {
+        throw new DrupalUpdateException('Database table not found: ' . $table . '. Aborting update.');
+      }
+    }
+  }
+
+  // Migrate data.
+  foreach ($table_mappings as $old => $new) {
+    db_query('INSERT INTO {' . $new . '} SELECT * FROM {' . $old . '}');
+  }
+
+  // Delete the old field instance.
+  $field = field_info_instance('log', 'field_growroom_light_sample_points', 'growroom_light_test');
+  field_delete_instance($field);
+}

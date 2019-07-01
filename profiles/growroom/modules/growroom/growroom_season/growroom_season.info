@@ -1,0 +1,24 @@
+name = Growroom Season
+description = Provides a taxonomy and fields for organizing assets and logs by season.
+core = 7.x
+package = growroomOS
+dependencies[] = ctools
+dependencies[] = date
+dependencies[] = date_popup
+dependencies[] = growroom_fields
+dependencies[] = features
+dependencies[] = pathauto
+dependencies[] = strongarm
+dependencies[] = taxonomy
+features[ctools][] = strongarm:strongarm:1
+features[features_api][] = api:2
+features[field_base][] = field_growroom_season
+features[field_instance][] = taxonomy_term-growroom_season-field_growroom_date_range
+features[taxonomy][] = growroom_season
+features[variable][] = pathauto_taxonomy_term_growroom_season_pattern
+
+; Information added by Drupal.org packaging script on 2018-11-14
+version = "7.x-0.01 beta"
+core = "7.x"
+project = "growroom"
+datestamp = "1542218112"

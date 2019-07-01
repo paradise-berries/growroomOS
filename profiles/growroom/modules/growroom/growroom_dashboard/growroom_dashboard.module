@@ -1,0 +1,148 @@
+<?php
+/**
+ * @file
+ * Growroom dashboard module.
+ */
+
+/**
+ * Implements hook_hook_info().
+ */
+function growroom_dashboard_hook_info() {
+  $hooks['growroom_dashboard_panes'] = array(
+    'group' => 'growroom_dashboard',
+  );
+  return $hooks;
+}
+
+/**
+ * Implements hook_permission().
+ */
+function growroom_dashboard_permission() {
+  return array(
+    'access growroom dashboard' => array(
+      'title' => t('Access growroom dashboard'),
+      'description' => t('Access the growroom dashboard.'),
+    ),
+  );
+}
+
+/**
+ * Implements hook_growroom_access_perms().
+ */
+function growroom_dashboard_growroom_access_perms($role) {
+  $perms = array();
+
+  // Access growroom dashboard.
+  $perms[] = 'access growroom dashboard';
+
+  return $perms;
+}
+
+/**
+ * Implements hook_menu().
+ */
+function growroom_dashboard_menu() {
+
+  $items['growroom'] = array(
+    'title' => 'Growroom',
+    'page callback' => 'growroom_dashboard_page_callback',
+    'access arguments' => array('access growroom dashboard'),
+    'type' => MENU_CALLBACK,
+  );
+  $items['growroom/dashboard'] = array(
+    'title' => 'Dashboard',
+    'type' => MENU_DEFAULT_LOCAL_TASK,
+    'weight' => -100,
+  );
+
+  // Root growroom configuration path.
+  $items['admin/config/growroom'] = array(
+    'title' => 'Growroom',
+    'description' => 'Configure settings for your growroom.',
+    'page callback' => 'system_admin_menu_block_page',
+    'access arguments' => array('access administration pages'),
+    'type' => MENU_NORMAL_ITEM,
+    'file path' => drupal_get_path('module', 'system'),
+    'file' => 'system.admin.inc',
+  );
+
+  return $items;
+}
+
+/**
+ * Growroom dashboard page callback.
+ */
+function growroom_dashboard_page_callback() {
+
+  // Set the page title.
+  drupal_set_title('Dashboard');
+
+  // Start a build array.
+  $build = array();
+
+  // Ask modules for dashboard panes.
+  $panes = module_invoke_all('growroom_dashboard_panes');
+
+  // Iterate through the panes and add them to the dashboard.
+  foreach ($panes as $pane) {
+
+    // Set defaults for title, output, group, and weight.
+    $output = '';
+    $title = '';
+    $group = 'general';
+    $weight = 0;
+
+    // Use the provided title, if available.
+    if (!empty($pane['title'])) {
+      $title = $pane['title'];
+    }
+
+    // If a 'view' and 'view_display_id' are provided, load the view, generate
+    // the preview, and set the title automatically.
+    if (!empty($pane['view']) && !empty($pane['view_display_id'])) {
+      $view = views_get_view($pane['view']);
+      $preview = $view->preview($pane['view_display_id']);
+      $title = $view->get_title();
+      $output = $preview;
+    }
+
+    // Or, if a callback function exists, execute it to get output.
+    elseif (!empty($pane['callback']) && function_exists($pane['callback'])) {
+      $output = call_user_func($pane['callback']);
+    }
+
+    // If a group is not provided, assign it to a general default group.
+    if (!empty($pane['group'])) {
+      $group = $pane['group'];
+    }
+
+    // If a weight is not provided, default to 0.
+    if (!empty($pane['weight'])) {
+      $weight = $pane['weight'];
+    }
+
+    // Create a container for the pane.
+    $container = array(
+      '#type' => 'container',
+      '#weight' => $weight,
+    );
+
+    // If a title is set, make it a fieldset.
+    if (!empty($title)) {
+      $container['#type'] = 'fieldset';
+      $container['#title'] = check_plain($title);
+    }
+
+    // Assemble a content markup item inside the container.
+    $container['content'] = array(
+      '#type' => 'markup',
+      '#markup' => $output,
+    );
+
+    // Add the container to the build array.
+    $build[$group][] = $container;
+  }
+
+  // Return the build array.
+  return $build;
+}

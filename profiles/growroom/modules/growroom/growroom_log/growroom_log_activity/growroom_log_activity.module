@@ -1,0 +1,25 @@
+<?php
+/**
+ * @file
+ * Code for the Growroom Log: Activity feature.
+ */
+
+// Include Features code.
+include_once 'growroom_log_activity.features.inc';
+
+/**
+ * Implements hook_growroom_ui_entities().
+ */
+function growroom_log_activity_growroom_ui_entities() {
+  return array(
+    'log' => array(
+      'growroom_activity' => array(
+        'label' => t('Activity'),
+        'label_plural' => t('Activities'),
+        'view' => 'growroom_log_activity',
+        'areas' => TRUE,
+        'weight' => -10,
+      ),
+    ),
+  );
+}

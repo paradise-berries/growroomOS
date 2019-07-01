@@ -1,0 +1,30 @@
+<?php
+/**
+ * @file
+ * Growroom menu install.
+ */
+
+/**
+ * Implements hook_enable().
+ */
+function growroom_menu_enable() {
+
+  // If Menu module is enabled, create the growroom menu.
+  // @see growroom_menu_modules_installed()
+  if (module_exists('menu')) {
+    growroom_menu_create();
+  }
+}
+
+/**
+ * Implements hook_uninstall().
+ */
+function growroom_menu_uninstall() {
+
+  // Delete the growroom menu.
+  if (module_exists('menu')) {
+    if ($growroom_menu = menu_load('growroom')) {
+      menu_delete($growroom_menu);
+    }
+  }
+}

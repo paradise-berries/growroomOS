@@ -1,0 +1,511 @@
+<?php
+
+/**
+ * @file
+ * Growroom Log install file.
+ */
+
+/**
+ * Implements hook_modules_enabled().
+ */
+function growroom_log_modules_enabled($modules) {
+
+  // Create log categories on behalf of all enabled modules.
+  growroom_log_categories_create_all();
+}
+
+/**
+ * Implements hook_update_dependencies().
+ */
+function growroom_log_update_dependencies() {
+
+  // Simultaneous changes to Log and Growroom Log modules require
+  // updates to be run in a specific back-and-forth order:
+  // 1. Log 7001 (add timestamp property).
+  // 2. Growroom Log 7000 (migrate field_growroom_date to timestamp property).
+  // 3. Log 7002 (add done property and mark past logs as done).
+  // 4. Growroom Log 7001 (converts Issues to Observations, assumes done property).
+  $dependencies['growroom_log'][7000] = array('log' => 7001);
+  $dependencies['log'][7002] = array('growroom_log' => 7000);
+  $dependencies['growroom_log'][7001] = array('log' => 7002);
+
+  // Update 7006 (Add movement field to activities, harvests, inputs, and
+  // observations.) depends on growroom_movement_update_7000().
+  $dependencies['growroom_log'][7006] = array('growroom_movement' => 7000);
+
+  return $dependencies;
+}
+
+/**
+ * Migrate all field_growroom_date fields to Log timestamp property.
+ */
+function growroom_log_update_7000(&$sandbox) {
+
+  /*
+   * As of January 16th, 2015, the Log module has a timestamp property,
+   * which has the same goal as the field_growroom_date field, so we're
+   * migrating to that.
+   */
+
+  // Load info about the field_growroom_date field.
+  $field_info = field_info_field('field_growroom_date');
+
+  // Copy all timestamps from the field to the property.
+  $query = "UPDATE {log} l
+    INNER JOIN {field_data_field_growroom_date} f
+      ON l.id = f.entity_id
+      AND f.entity_type = 'log'
+    SET l.timestamp = f.field_growroom_date_value";
+  db_query($query);
+
+  // Iterate through the log bundles that implement this field.
+  if (!empty($field_info['bundles']['log'])) {
+    foreach ($field_info['bundles']['log'] as $bundle) {
+
+      // Load and delete the field instance.
+      $field_instance = field_info_instance('log', 'field_growroom_date', $bundle);
+      field_delete_instance($field_instance);
+    }
+  }
+}
+
+/**
+ * Migrate Issues to Observations.
+ */
+function growroom_log_update_7001(&$sandbox) {
+
+  // Create a new "Issue" Observation Type.
+  $vocab = taxonomy_vocabulary_machine_name_load('growroom_observation_types');
+  $term = entity_create('taxonomy_term', array(
+    'name' => 'Issue',
+    'vid' => $vocab->vid,
+  ));
+  taxonomy_term_save($term);
+
+  // Load all issue logs.
+  $query = new EntityFieldQuery();
+  $query->entityCondition('entity_type', 'log');
+  $query->entityCondition('bundle', 'growroom_issue');
+  $result = $query->execute();
+  if (isset($result['log'])) {
+    $ids = array_keys($result['log']);
+    $logs = entity_load('log', $ids);
+  }
+
+  // If logs were loaded, iterate through them...
+  if (!empty($logs)) {
+    foreach ($logs as $log) {
+
+      // Build a list of values for the new observation log.
+      $values = array(
+        'type' => 'growroom_observation',
+        'name' => $log->name,
+        'created' => $log->created,
+        'changed' => $log->changed,
+        'uid' => $log->uid,
+      );
+
+      // Create a new observation log.
+      $observation = entity_create('log', $values);
+
+      // Assign it to the new "Issue" Observation Type.
+      $observation->field_growroom_observation_type[LANGUAGE_NONE][] = array(
+        'tid' => $term->tid,
+      );
+
+      // Copy fields from the issue log.
+      $observation->field_growroom_asset = $log->field_growroom_assets;
+      $observation->field_growroom_notes = $log->field_growroom_notes;
+
+      // Save the new log.
+      log_save($observation);
+
+      // Manually copy the timestamp and done properties, in case this
+      // is running at the same time as log_update_7001 and log_update_7002.
+      $result = db_query('SELECT timestamp, done FROM {log} WHERE id=:id', array(':id' => $log->id));
+      if ($result) {
+        while ($row = $result->fetchAssoc()) {
+          db_query('UPDATE {log} SET timestamp=:timestamp, done=:done WHERE id=:id', array(
+            ':timestamp' => $row['timestamp'],
+            ':done' => $row['done'],
+            ':id' => $observation->id,
+          ));
+        }
+      }
+
+      // Delete the old log.
+      log_delete($log);
+    }
+  }
+
+  // Delete the View, if it still exists.
+  $view = views_get_view('growroom_log_issues');
+  if (!empty($view)) {
+    views_delete_view($view);
+  }
+
+  // Delete the Priority Levels vocabulary.
+  $vocab = taxonomy_vocabulary_machine_name_load('growroom_priority');
+  if (!empty($vocab)) {
+    taxonomy_vocabulary_delete($vocab->vid);
+  }
+
+  // Delete the issue log type.
+  $log_type = log_type_load('growroom_issue');
+  if (!empty($log_type)) {
+    log_type_delete($log_type);
+  }
+}
+
+/**
+ * Migrate Areas and Assets fields to Area and Asset field.
+ */
+function growroom_log_update_7002(&$sandbox) {
+
+  // Start by reverting the fields component of this module
+  // so that the new Area and Asset fields are available.
+  features_revert(array('growroom_log' => array('field')));
+
+  // Load all activity logs.
+  $query = new EntityFieldQuery();
+  $query->entityCondition('entity_type', 'log');
+  $query->entityCondition('bundle', 'growroom_activity');
+  $result = $query->execute();
+  if (isset($result['log'])) {
+    $ids = array_keys($result['log']);
+    $logs = entity_load('log', $ids);
+  }
+
+  // If logs were loaded, iterate through them...
+  if (!empty($logs)) {
+    foreach ($logs as $log) {
+
+      // Copy the first area, discard the rest.
+      if (!empty($log->field_growroom_areas[LANGUAGE_NONE][0])) {
+        $log->field_growroom_area[LANGUAGE_NONE][] = $log->field_growroom_areas[LANGUAGE_NONE][0];
+      }
+
+      // Copy the first asset, discard the rest.
+      if (!empty($log->field_growroom_assets[LANGUAGE_NONE][0])) {
+        $log->field_growroom_asset[LANGUAGE_NONE][] = $log->field_growroom_assets[LANGUAGE_NONE][0];
+      }
+
+      // Save the log.
+      log_save($log);
+    }
+  }
+
+  // Delete the areas field.
+  $field = field_info_instance('log', 'field_growroom_areas', 'growroom_activity');
+  field_delete_instance($field);
+
+  // Delete the assets field.
+  $field = field_info_instance('log', 'field_growroom_assets', 'growroom_activity');
+  field_delete_instance($field);
+}
+
+/**
+ * Populate the new movement geofields with geometry from referenced areas.
+ */
+function growroom_log_update_7003(&$sandbox) {
+
+  // Process this in passes of 50 movements at a time.
+  $sandbox['#finished'] = 0;
+  $limit = 10;
+
+  // Keep track of progress.
+  if (!isset($sandbox['progress'])) {
+
+    // Start by reverting the field instance component of this module
+    // so that the new geofield is available
+    features_revert(array('growroom_log' => array('field_instance')));
+
+    // Start out at zero.
+    $sandbox['progress'] = 0;
+
+    // Count how many movement logs there are.
+    $sandbox['max'] = db_select('log')
+      ->fields(NULL, array('id'))
+      ->condition('type', 'growroom_movement')
+      ->countQuery()
+      ->execute()
+      ->fetchField();
+  }
+
+  // Fetch the next set of movements.
+  $query = db_select('log')
+    ->fields(NULL, array('id'))
+    ->condition('type', 'growroom_movement')
+    ->orderBy('id', 'ASC')
+    ->range($sandbox['progress'], $limit);
+  $results = $query->execute();
+
+  // Iterate over the results and save each one. growroom_log_entity_presave() will
+  // do the rest.
+  while ($id = $results->fetchField()) {
+
+    // Increment progress.
+    $sandbox['progress']++;
+
+    // Load the log and save it.
+    $log = log_load($id);
+    log_save($log);
+  }
+
+  // Tell Drupal whether or not we're finished.
+  if ($sandbox['max'] > 0) {
+    $sandbox['#finished'] = $sandbox['progress'] / $sandbox['max'];
+  }
+  else {
+    $sandbox['#finished'] = 1;
+  }
+}
+
+/**
+ * Enable new sub-modules: Activity, Harvest, Input, Movement, Observation.
+ */
+function growroom_log_update_7004(&$sandbox) {
+  $modules = array(
+    'growroom_log_activity',
+    'growroom_log_harvest',
+    'growroom_log_input',
+    'growroom_log_observation',
+    'growroom_movement',
+  );
+  foreach ($modules as $module) {
+    if (!module_exists($module)) {
+      module_enable(array($module));
+    }
+  }
+}
+
+/**
+ * Populate geofields on activity, input, and observation logs with geometry
+ * from referenced areas.
+ */
+function growroom_log_update_7005(&$sandbox) {
+
+  // Process this in passes of 50 movements at a time.
+  $sandbox['#finished'] = 0;
+  $limit = 10;
+
+  // Keep track of progress.
+  if (!isset($sandbox['progress'])) {
+
+    // Start out at zero.
+    $sandbox['progress'] = 0;
+
+    // Count how many movement logs there are.
+    $sandbox['max'] = db_select('log')
+      ->fields(NULL, array('id'))
+      ->condition('type', array('growroom_activity', 'growroom_input', 'growroom_observation'), 'IN')
+      ->countQuery()
+      ->execute()
+      ->fetchField();
+  }
+
+  // Fetch the next set of movements.
+  $query = db_select('log')
+    ->fields(NULL, array('id'))
+    ->condition('type', array('growroom_activity', 'growroom_input', 'growroom_observation'), 'IN')
+    ->orderBy('id', 'ASC')
+    ->range($sandbox['progress'], $limit);
+  $results = $query->execute();
+
+  // Iterate over the results and save each one. growroom_log_entity_presave() will
+  // do the rest.
+  while ($id = $results->fetchField()) {
+
+    // Increment progress.
+    $sandbox['progress']++;
+
+    // Load the log and save it.
+    $log = log_load($id);
+    log_save($log);
+  }
+
+  // Tell Drupal whether or not we're finished.
+  if ($sandbox['max'] > 0) {
+    $sandbox['#finished'] = $sandbox['progress'] / $sandbox['max'];
+  }
+  else {
+    $sandbox['#finished'] = 1;
+  }
+}
+
+/**
+ * Add movement field to activities, harvests, inputs, and observations.
+ */
+function growroom_log_update_7006(&$sandbox) {
+  $modules = array(
+    'growroom_log_activity',
+    'growroom_log_harvest',
+    'growroom_log_input',
+    'growroom_log_observation',
+  );
+  foreach ($modules as $module) {
+    features_revert(array($module => array('field_instance')));
+  }
+}
+
+/**
+ * Migrate observation types to log categories.
+ */
+function growroom_log_update_7007(&$sandbox) {
+
+  // Revert various Features components to ensure that the new log categories
+  // vocabulary is created, and the new field base and instances are added.
+  $components = array(
+    'growroom_fields' => array('field_base'),
+    'growroom_log_activity' => array('field_instance'),
+    'growroom_log_harvest' => array('field_instance'),
+    'growroom_log_input' => array('field_instance'),
+    'growroom_log_observation' => array('field_instance'),
+  );
+  features_revert($components);
+
+  // Load the old "Growroom Observation Types" vocabulary.
+  $observation_types_vocab = taxonomy_vocabulary_machine_name_load('growroom_observation_types');
+
+  // Load the new "Growroom Log Categories" vocabulary.
+  $log_categories_vocab = taxonomy_vocabulary_machine_name_load('growroom_log_categories');
+
+  // If either of them didn't load, we need to bail.
+  if (empty($observation_types_vocab->vid) || empty($log_categories_vocab->vid)) {
+    $message = 'Terms could not be migrated from the Growroom Observation Types
+    vocabulary to the Growroom Log Categories vocabulary because one or both of
+    them could not be loaded. Check to make sure both vocabularies exist, and
+    try running the update again.';
+    throw new DrupalUpdateException($message);
+  }
+
+  // Move all terms from the old vocabulary to the new vocabulary.
+  db_update('taxonomy_term_data')
+    ->fields(array('vid' => $log_categories_vocab->vid))
+    ->condition('vid', $observation_types_vocab->vid)
+    ->execute();
+
+  // Move all field data from the old field to the new field.
+  db_query('INSERT INTO {field_data_field_growroom_log_category} (SELECT entity_type, bundle, deleted, entity_id, revision_id, language, delta, field_growroom_observation_type_tid as field_growroom_log_category_tid FROM {field_data_field_growroom_observation_type})');
+  db_query('INSERT INTO {field_revision_field_growroom_log_category} (SELECT entity_type, bundle, deleted, entity_id, revision_id, language, delta, field_growroom_observation_type_tid as field_growroom_log_category_tid FROM {field_revision_field_growroom_observation_type})');
+
+  // Delete the old vocabulary.
+  taxonomy_vocabulary_delete($observation_types_vocab->vid);
+
+  // Delete the old field instance.
+  $field = field_info_instance('log', 'field_growroom_observation_type', 'growroom_observation');
+  field_delete_instance($field);
+
+  // Create log categories on behalf of all enabled modules.
+  growroom_log_categories_create_all();
+}
+
+/**
+ * Autopopulate categories on certain log types.
+ */
+function growroom_log_update_7008(&$sandbox) {
+
+  // Process this in passes of 50 logs at a time.
+  $sandbox['#finished'] = 0;
+  $limit = 50;
+
+  // Keep track of progress.
+  if (!isset($sandbox['progress'])) {
+
+    // Start out at zero.
+    $sandbox['progress'] = 0;
+
+    // Count how many movement logs there are.
+    $sandbox['max'] = db_select('log')
+      ->fields(NULL, array('id'))
+      ->countQuery()
+      ->execute()
+      ->fetchField();
+  }
+
+  // Fetch the next set of logs.
+  $query = db_select('log')
+    ->fields(NULL, array('id', 'type'))
+    ->orderBy('id', 'ASC')
+    ->range($sandbox['progress'], $limit);
+  $results = $query->execute();
+
+  // Iterate over the results...
+  foreach ($results as $row) {
+
+    // Increment progress.
+    $sandbox['progress']++;
+
+    // Load categories provided by modules.
+    $categories = module_invoke_all('growroom_log_categories_populate', $row);
+
+    // If there are no categories, skip this log.
+    if (empty($categories)) {
+      continue;
+    }
+
+    // Check to see if the log has existing categories so we can increment
+    // the field's delta value accordingly.
+    $query = db_select('field_data_field_growroom_log_category', 'cat');
+    $query->fields('cat', array('delta', 'field_growroom_log_category_tid'));
+    $query->condition('cat.entity_type', 'log');
+    $query->condition('cat.deleted', 0);
+    $query->condition('cat.entity_id', $row->id);
+    $existing = $query->execute();
+
+    // Iterate over the existing records to build a list of term IDs and get
+    // the highest delta.
+    $delta = NULL;
+    $tids = array();
+    foreach ($existing as $field) {
+      if ($field->delta > $delta) {
+        $delta = $field->delta;
+      }
+      $tids[] = $field->field_growroom_log_category_tid;
+    }
+    if (is_null($delta)) {
+      $delta = 0;
+    }
+    else {
+      $delta++;
+    }
+
+    // Iterate over the categories.
+    foreach ($categories as $category) {
+
+      // Load the term.
+      $terms = taxonomy_get_term_by_name($category, 'growroom_log_categories');
+      $term = reset($terms);
+
+      // If the term already exists on the log, skip it.
+      if (in_array($term->tid, $tids)) {
+        continue;
+      }
+
+      // Write it to the database.
+      $record = array(
+        'entity_type' => 'log',
+        'bundle' => $row->type,
+        'deleted' => 0,
+        'entity_id' => $row->id,
+        'revision_id' => $row->id,
+        'language' => 'und',
+        'delta' => $delta,
+        'field_growroom_log_category_tid' => $term->tid,
+      );
+      drupal_write_record('field_data_field_growroom_log_category', $record);
+      drupal_write_record('field_revision_field_growroom_log_category', $record);
+
+      // Increment delta.
+      $delta++;
+    }
+  }
+
+  // Tell Drupal whether or not we're finished.
+  if ($sandbox['max'] > 0) {
+    $sandbox['#finished'] = $sandbox['progress'] / $sandbox['max'];
+  }
+  else {
+    $sandbox['#finished'] = 1;
+  }
+}

@@ -1,0 +1,20 @@
+<?php
+/**
+ * @file
+ * Growroom sterilization install.
+ */
+
+/**
+ * Implements hook_enable().
+ */
+function growroom_sterilization_enable() {
+
+  // Ensure that the "Amendment" quick form is enabled.
+  $variable = 'growroom_quick_forms_enabled';
+  $name = 'amendment';
+  $enabled = variable_get($variable, array());
+  if (empty($enabled[$name])) {
+    $enabled[$name] = $name;
+    variable_set($variable, $enabled);
+  }
+}

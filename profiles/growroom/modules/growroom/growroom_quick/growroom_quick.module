@@ -1,0 +1,251 @@
+<?php
+/**
+ * @file
+ * Code for the Growroom Quick module.
+ */
+
+/**
+ * Implements hook_hook_info().
+ */
+function growroom_quick_hook_info() {
+  $hooks['growroom_quick_forms'] = array(
+    'group' => 'growroom_quick',
+  );
+  return $hooks;
+}
+
+/**
+ * Implements hook_permission().
+ */
+function growroom_quick_permission() {
+  return array(
+    'configure growroom quick forms' => array(
+      'title' => t('Configure quick forms'),
+      'description' => t('Allow access to the quick forms configuration.'),
+    ),
+  );
+}
+
+/**
+ * Implements hook_growroom_access_perms().
+ */
+function growroom_quick_growroom_access_perms($role) {
+  $perms = array();
+
+  // Add the "configure growroom quick forms" permission to Growroom Manager roles.
+  if ($role == 'Growroom Manager') {
+    $perms[] = 'configure growroom quick forms';
+  }
+
+  return $perms;
+}
+
+/**
+ * Load information about all quick forms provided by other modules.
+ */
+function growroom_quick_forms() {
+
+  // Ask modules for quick forms.
+  $forms = array();
+  $modules = module_implements('growroom_quick_forms');
+  foreach ($modules as $module) {
+    $module_forms = module_invoke($module, 'growroom_quick_forms');
+    foreach ($module_forms as &$form) {
+      $form['module'] = $module;
+    }
+    $forms = array_merge($forms, $module_forms);
+  }
+
+  // Sort the quick forms.
+  uasort($forms, 'growroom_quick_forms_sort');
+
+  // Return the array of quick forms.
+  return $forms;
+}
+
+/**
+ * Sort function for quick form definitions.
+ */
+function growroom_quick_forms_sort($a, $b) {
+
+  // Sort alphabetically by the 'label' property.
+  return strcasecmp($a['label'], $b['label']);
+}
+
+/**
+ * Implements hook_menu().
+ */
+function growroom_quick_menu() {
+
+  // Start with an empty menu items array.
+  $items = array();
+
+  // Ask for quick forms from modules.
+  $forms = growroom_quick_forms();
+
+  // Get a list of enabled quick forms from saved variable.
+  $enabled_quick_forms = variable_get('growroom_quick_forms_enabled', array());
+
+  // Filter out disabled forms.
+  foreach ($forms as $name => $info) {
+    if (empty($enabled_quick_forms[$name])) {
+      unset($forms[$name]);
+    }
+  }
+
+  // Add a menu item for each form.
+  foreach ($forms as $name => $form) {
+
+    // Build a menu item definition.
+    $menu_item = array(
+      'title' => $form['label'],
+      'page callback' => 'growroom_quick_form_page',
+      'page arguments' => array($form['label'], $form['form']),
+      'access arguments' => array($form['permission']),
+      'type' => MENU_LOCAL_TASK,
+    );
+
+    // If the quick form code is in a separate file, add that information
+    // to the menu item so Drupal knows where to look.
+    if (!empty($form['file']) && !empty($form['module'])) {
+      $menu_item['file'] = $form['file'];
+      $menu_item['file path'] = drupal_get_path('module', $form['module']);
+    }
+
+    // Add a menu item.
+    $items['growroom/quick/' . $name] = $menu_item;
+  }
+
+  // Add a tab for configuring quick forms.
+  $items['growroom/quick/configure'] = array(
+    'title' => t('Configure'),
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('growroom_quick_configure_form'),
+    'access arguments' => array('configure growroom quick forms'),
+    'type' => MENU_LOCAL_TASK,
+    'weight' => 100,
+  );
+
+  // Make the first item into the default tab.
+  reset($items);
+  $first = key($items);
+  $items['growroom/quick'] = $items[$first];
+  $items['growroom/quick']['title'] = 'Quick forms';
+  $items['growroom/quick']['type'] = MENU_LOCAL_TASK;
+  $items[$first] = array(
+    'title' => $items[$first]['title'],
+    'type' => MENU_DEFAULT_LOCAL_TASK,
+  );
+
+  // Return menu items.
+  return $items;
+}
+
+/**
+ * Quick form page callback.
+ */
+function growroom_quick_form_page($title, $form_id) {
+  drupal_set_title(t('Quick form') . ': ' . $title);
+  return drupal_get_form($form_id);
+}
+
+/**
+ * Form for configuring quick forms.
+ */
+function growroom_quick_configure_form($form, &$form_state) {
+
+  // Load the list of quick forms.
+  $quick_forms = growroom_quick_forms();
+
+  // If there are no forms, bail.
+  if (empty($quick_forms)) {
+    $form['empty'] = array(
+      '#type' => 'markup',
+      '#markup' => 'There are no quick forms available.',
+    );
+    return $form;
+  }
+
+  // Create a set of checkbox options for the forms.
+  $options = array();
+  foreach ($quick_forms as $name => $info) {
+    if (!empty($info['label'])) {
+      $options[$name] = $info['label'];
+    }
+  }
+
+  // Load the list of enabled quick forms from a variable.
+  $enabled_quick_forms = variable_get('growroom_quick_forms_enabled', array());
+
+  // Display as a list of checkboxes.
+  $form['growroom_quick_forms_enabled'] = array(
+    '#type' => 'checkboxes',
+    '#title' => t('Enable or disable quick forms'),
+    '#options' => $options,
+    '#default_value' => $enabled_quick_forms,
+  );
+
+  // Wrap it in a system settings form.
+  $form = system_settings_form($form);
+
+  // Add a submit function that will rebuild the menu tabs (to run after the
+  // system_settings_form() submit function.
+  $form['#submit'][] = 'growroom_quick_configure_form_submit';
+
+  // Return the form.
+  return $form;
+}
+
+/**
+ * Submit function for rebuilding the menu tabs after configuring quick forms.
+ */
+function growroom_quick_configure_form_submit(&$form, &$form_state) {
+  menu_rebuild();
+}
+
+/**
+ * Link an entity to a quick form.
+ *
+ * @param string $quick_form_id
+ *   The quick form ID.
+ * @param string $entity_type
+ *   The entity type.
+ * @param $entity
+ *   The entity.
+ */
+function growroom_quick_entity_link($quick_form_id, $entity_type, $entity) {
+
+  // If no quick form ID is provided, bail.
+  if (empty($quick_form_id)) {
+    return;
+  }
+
+  // Get the entity ID.
+  $id = entity_id($entity_type, $entity);
+
+  // If the ID could not be found, bail.
+  if (empty($id)) {
+    return;
+  }
+
+  // Save it to the {growroom_quick_entity} table.
+  $record = array(
+    'entity_type' => $entity_type,
+    'entity_id' => $id,
+    'quick_form_id' => $quick_form_id
+  );
+  drupal_write_record('growroom_quick_entity', $record);
+}
+
+/**
+ * Implements hook_entity_delete().
+ */
+function growroom_quick_entity_delete($entity, $type) {
+
+  // When an entity is deleted, delete associated records in
+  // {growroom_quick_entity}.
+  $id = entity_id($type, $entity);
+  if (!empty($id)) {
+    db_query('DELETE FROM {growroom_quick_entity} WHERE entity_type = :entity_type AND entity_id = :entity_id', array(':entity_type' => $type, ':entity_id' => $id));
+  }
+}

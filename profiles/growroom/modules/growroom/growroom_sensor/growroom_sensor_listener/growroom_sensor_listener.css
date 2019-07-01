@@ -1,0 +1,6 @@
+@media (min-width: 992px) {
+  .growroom-sensor-graph {
+    width: 50%;
+    float: left;
+  }
+}

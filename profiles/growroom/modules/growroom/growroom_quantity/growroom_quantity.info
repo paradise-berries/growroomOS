@@ -1,0 +1,32 @@
+name = Growroom Quantity
+description = Provides a framework for dealing with quantities.
+core = 7.x
+package = growroomOS
+dependencies[] = ctools
+dependencies[] = features
+dependencies[] = field_collection
+dependencies[] = fraction
+dependencies[] = list
+dependencies[] = options
+dependencies[] = strongarm
+dependencies[] = taxonomy
+dependencies[] = text
+features[ctools][] = strongarm:strongarm:1
+features[features_api][] = api:2
+features[field_base][] = field_growroom_quantity
+features[field_base][] = field_growroom_quantity_label
+features[field_base][] = field_growroom_quantity_measure
+features[field_base][] = field_growroom_quantity_units
+features[field_base][] = field_growroom_quantity_value
+features[field_instance][] = field_collection_item-field_growroom_quantity-field_growroom_quantity_label
+features[field_instance][] = field_collection_item-field_growroom_quantity-field_growroom_quantity_measure
+features[field_instance][] = field_collection_item-field_growroom_quantity-field_growroom_quantity_units
+features[field_instance][] = field_collection_item-field_growroom_quantity-field_growroom_quantity_value
+features[taxonomy][] = growroom_quantity_units
+features[variable][] = pathauto_taxonomy_term_growroom_quantity_units_pattern
+
+; Information added by Drupal.org packaging script on 2018-11-14
+version = "7.x-0.01 beta"
+core = "7.x"
+project = "growroom"
+datestamp = "1542218112"

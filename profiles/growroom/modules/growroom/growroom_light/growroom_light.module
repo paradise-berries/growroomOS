@@ -1,0 +1,16 @@
+<?php
+/**
+ * @file
+ * Code for the Growroom Light feature.
+ */
+
+include_once 'growroom_light.features.inc';
+
+/**
+ * Implements hook_growroom_log_categories().
+ */
+function growroom_light_growroom_log_categories() {
+
+  // Provide an "Light" log category.
+  return array('Light');
+}

@@ -1,0 +1,642 @@
+<?php
+/**
+ * @file
+ * Code for the Growroom Area feature.
+ */
+
+include_once 'growroom_area.features.inc';
+
+/**
+ * Implements hook_hook_info().
+ */
+function growroom_area_hook_info() {
+  $hooks['growroom_area_details'] = array(
+    'group' => 'growroom_area',
+  );
+  $hooks['growroom_area_type_info'] = array(
+    'group' => 'growroom_area',
+  );
+  return $hooks;
+}
+
+/**
+ * Implements hook_permission().
+ */
+function growroom_area_permission() {
+  return array(
+    'view growroom areas' => array(
+      'title' => t('View growroom areas'),
+      'description' => t('View all areas in the growroom.'),
+    ),
+  );
+}
+
+/**
+ * Implements hook_growroom_access_perms().
+ */
+function growroom_area_growroom_access_perms($role) {
+  $perms = array();
+
+  // Add the "view growroom areas" permission to all roles.
+  $perms[] = 'view growroom areas';
+
+  return $perms;
+}
+
+/**
+ * Implements hook_menu().
+ */
+function growroom_area_menu() {
+  $items['growroom/area/%/details'] = array(
+    'page callback' => 'growroom_area_details_json',
+    'page arguments' => array(2),
+    'access arguments' => array('view growroom areas'),
+    'type' => MENU_CALLBACK,
+  );
+  return $items;
+}
+
+/**
+ * Implements hook_growroom_ui_entities().
+ */
+function growroom_area_growroom_ui_entities() {
+  return array(
+    'taxonomy_term' => array(
+      'growroom_areas' => array(
+        'label' => t('Area'),
+        'label_plural' => t('Areas'),
+        'view' => 'growroom_areas',
+      ),
+    ),
+  );
+}
+
+/**
+ * Get information about all available area types.
+ */
+function growroom_area_types() {
+
+  // Get available types from modules.
+  $area_types = module_invoke_all('growroom_area_type_info');
+
+  // Iterate through the types and create an index by weight.
+  $weight_index = array();
+  foreach ($area_types as $key => $type) {
+
+    // Default weight is zero.
+    if (empty($type['weight'])) {
+      $type['weight'] = 0;
+    }
+
+    // Add it to the weight index array.
+    $weight_index[$key] = $type['weight'];
+  }
+
+  // Sort the weight index array.
+  asort($weight_index);
+
+  // Iterate through the weight index to build the final sorted list.
+  $area_types_sorted = array();
+  foreach ($weight_index as $key => $weight) {
+    $area_types_sorted[$key] = $area_types[$key];
+  }
+
+  // Return the sorted list.
+  return $area_types_sorted;
+}
+
+/**
+ * Get an array of available growroom area type options.
+ *
+ * @return array
+ *   Returns an array of growroom area type options provided by modules, for use
+ *   in a form select element.
+ */
+function growroom_area_type_options() {
+
+  // Start with an empty options array.
+  $options = array();
+
+  // Get available types from modules.
+  $area_types = module_invoke_all('growroom_area_type_info');
+
+  // Iterate through the weight index to build the final options list.
+  foreach ($area_types as $key => $type) {
+    if (!empty($type['label'])) {
+      $options[$key] = $type['label'];
+    }
+  }
+
+  // Return the list of options.
+  return $options;
+}
+
+/**
+ * Parse a string of area names and return an array of loaded area entities. If
+ * area names do not exist, they can optionally be created.
+ *
+ * @param string $names
+ *   A comma-separated list of area names.
+ * @param bool $create
+ *   Whether or not to create areas that don't exist. Defaults to FALSE.
+ *
+ * @return array
+ *   Returns an array of area objects. If the area names exist, they will be
+ *   loaded from the database. Otherwise, they will be created.
+ */
+function growroom_area_parse_names($names, $create = FALSE) {
+
+  // Start with an empty array.
+  $areas = array();
+
+  // Explode the value into an array and only take the first value.
+  // (Same behavior as taxonomy autocomplete widget.)
+  $values = drupal_explode_tags($names);
+
+  // If the value is empty, bail.
+  if (empty($values)) {
+    return $areas;
+  }
+
+  // Iterate through the values and built an array of areas.
+  foreach ($values as $value) {
+
+    // Create/load the area term.
+    $area = growroom_term($value, 'growroom_areas', $create);
+
+    // Add to the array of areas.
+    $areas[] = $area;
+  }
+
+  // Return the array of areas.
+  return $areas;
+}
+
+/**
+ * Load a list of areas (optionally by type).
+ *
+ * @param $type
+ *   Optionally specify an area type to filter by.
+ * @param $sort
+ *   Optionally specify the property to sort by. Defaults to 'id'.
+ *
+ * @return array
+ *   Returns an array of areas.
+ */
+function growroom_area_load_areas($type = '', $sort = 'id') {
+
+  // Start with an empty array.
+  $areas = array();
+
+  // Start an entity field query for terms in the growroom_areas vocabulary.
+  $query = new EntityFieldQuery();
+  $query->entityCondition('entity_type', 'taxonomy_term')
+    ->entityCondition('bundle', 'growroom_areas');
+
+  // If the $sort argument is 'id', translate it to 'tid' (remove this if/when
+  // areas become assets (see https://www.drupal.org/node/2363393).
+  if ($sort == 'id') {
+    $sort = 'tid';
+  }
+
+  // Sort the results.
+  $query->propertyOrderBy($sort, 'ASC');
+
+  // If a type is defined, add a field condition to filter by that type.
+  if (!empty($type)) {
+    $query->fieldCondition('field_growroom_area_type', 'value', $type);
+  }
+
+  // Execute the query and load the areas.
+  $result = $query->execute();
+  if (isset($result['taxonomy_term'])) {
+    $area_ids = array_keys($result['taxonomy_term']);
+    $areas = entity_load('taxonomy_term', $area_ids);
+  }
+
+  // Return the areas.
+  return $areas;
+}
+
+/**
+ * Generate area details.
+ *
+ * @param int $id
+ *   The area id.
+ *
+ * @return string
+ *   Returns a string of links.
+ */
+function growroom_area_get_details($id) {
+
+  // Call out to modules that want to provide links.
+  $area_details = module_invoke_all('growroom_area_details', check_plain($id));
+
+  // Render and return.
+  return drupal_render($area_details);
+}
+
+/**
+ * Menu callback that returns rendered area details as JSON.
+ */
+function growroom_area_details_json($aid) {
+  $area_details = growroom_area_get_details($aid);
+  drupal_json_output($area_details);
+  drupal_exit();
+}
+
+/**
+ * Implements hook_openlayers_object_preprocess_alter().
+ */
+function growroom_area_openlayers_object_preprocess_alter(&$build, $context) {
+
+  // If the object is not a Map, bail.
+  if (!$context instanceof Drupal\openlayers\Types\MapInterface) {
+    return;
+  }
+
+  // If this is the growroom_areas map, add area details javascript.
+  if ($context->getMachineName() == 'growroom_areas') {
+
+    // Add a Javascript setting that defines the base path of the site.
+    // We do this instead of using Drupal.settings.basePath in Javascript
+    // because that variable does not take into account whether or not clean
+    // URLs are enabled.
+    $setting = array(
+      'growroom_area' => array(
+        'base_path' => url('growroom/area'),
+      ),
+    );
+    drupal_add_js($setting, 'setting');
+
+    // Add the Javascript for lazy loading area details.
+    $path = drupal_get_path('module', 'growroom_area');
+    drupal_add_js($path . '/js/growroom_area.openlayers.popup.js');
+  }
+}
+
+/**
+ * Implements hook_page_build().
+ */
+function growroom_area_page_build(&$page) {
+
+  // If this is the growroom dashboard, display the areas map.
+  $current_path = current_path();
+  $map_paths = array(
+    'growroom/areas',
+    'growroom/areas/list',
+  );
+  if (in_array($current_path, $map_paths)) {
+
+    // Build the map and add it to the page content.
+    $page['content']['growroom_areas'] = growroom_map_build('growroom_areas');
+
+    // Set the weight to -100 so that it appears on top.
+    $page['content']['growroom_areas']['#weight'] = -100;
+
+    // Set the content region #sorted flag to FALSE so that it resorts.
+    $page['content']['#sorted'] = FALSE;
+  }
+}
+
+/**
+ * Implements hook_entity_view_alter().
+ */
+function growroom_area_entity_view_alter(&$build, $type) {
+
+  // If it's not a taxonomy_term, or if the entity object is not available,
+  // bail.
+  if ($type != 'taxonomy_term' || empty($build['#term'])) {
+    return;
+  }
+
+  // Alias the area variable.
+  $area = $build['#term'];
+
+  // If it isn't a growroom_areas term, bail.
+  if ($area->vocabulary_machine_name != 'growroom_areas') {
+    return;
+  }
+
+  // Get the area's calculated area (formatted).
+  $calculated_area = growroom_area_calculate_area($area->tid, TRUE);
+
+  // If the calculated area isn't available, bail.
+  if (empty($calculated_area)) {
+    return;
+  }
+
+  // Build the calculated area display.
+  $output = '<strong>' . t('Calculated area') . ':</strong> ' . $calculated_area;
+
+  // Add it to the build array.
+  $build['calculated_area'] = array(
+    '#markup' => $output,
+    '#prefix' => '<div class="calculated_area">',
+    '#suffix' => '</div>',
+    '#weight' => 1,
+  );
+}
+
+/**
+ * Helper function to extract geometries from areas.
+ *
+ * @param array $ids
+ *   An array of area term IDs.
+ *
+ * @return array
+ *   Returns an array of geometry strings in WKT format.
+ */
+function growroom_area_extract_geoms($ids = array()) {
+
+  // Start an empty array of geometries to return.
+  $geoms = array();
+
+  // If the array of IDs is empty, bail.
+  if (empty($ids)) {
+    return $geoms;
+  }
+
+  // Load the areas.
+  $areas = array();
+  foreach ($ids as $id) {
+    if ($area = taxonomy_term_load($id)) {
+      $areas[] = $area;
+    }
+  }
+
+  // If no areas are referenced, bail.
+  if (empty($areas)) {
+    return $geoms;
+  }
+
+  // Iterate over the areas to find geometries.
+  $geoms = array();
+  foreach ($areas as $area) {
+    if (!empty($area->field_growroom_geofield[LANGUAGE_NONE])) {
+      foreach ($area->field_growroom_geofield[LANGUAGE_NONE] as $geofield) {
+        if (!empty($geofield['geom'])) {
+          $geoms[] = $geofield['geom'];
+        }
+      }
+    }
+  }
+
+  // Return the geometries.
+  return $geoms;
+}
+
+/**
+ * Calculate the area of a growroom area.
+ *
+ * @param $area_id
+ *   The area id to load.
+ * @param $format
+ *   Boolean indicating whether or not the returned value should be formatted
+ *   based on the unit of measurement
+ *
+ * @return string
+ *   Returns the calculated are of the area as a string, in meters squared by
+ *   default. If $format is TRUE it will be converted and formatted using
+ *   growroom_area_format_calculated_area().
+ *
+ * @see growroom_area_format_calculated_area()
+ */
+function growroom_area_calculate_area($area_id, $format = FALSE) {
+
+  // Load the area.
+  $area = taxonomy_term_load($area_id);
+
+  // If the area doesn't exist, bail.
+  if (empty($area)) {
+    return '';
+  }
+
+  // Get WKT from the field. If empty, bail.
+  if (!empty($area->field_growroom_geofield[LANGUAGE_NONE][0]['geom'])) {
+    $geom = $area->field_growroom_geofield[LANGUAGE_NONE][0]['geom'];
+  }
+  else {
+    return '';
+  }
+
+  // Load the WKT into a GeoPHP Geometry object and reduce it.
+  geophp_load();
+  $polygon = geoPHP::load($geom, 'wkt');
+  $polygon = geoPHP::geometryReduce($polygon);
+
+  // Ensure that it is a simple polygon.
+  if ($polygon->geometryType() != 'Polygon') {
+    return '';
+  }
+
+  // Calculate the area in square meters.
+  $measurement = growroom_map_polygon_area($polygon);
+
+  // Return the area as a string (optionally formatted using the default
+  // system of measure).
+  if (!empty($format)) {
+    return growroom_area_format_calculated_area($measurement);
+  }
+  return $measurement;
+}
+
+/**
+ * Calculate the area of multiple growroom areas.
+ *
+ * @param array $area_ids
+ *   An array of area IDs.
+ * @param $format
+ *   Boolean indicating whether or not the returned value should be formatted
+ *   based on the unit of measurement
+ *
+ * @return string
+ *   Returns the calculated are of the areas as a string, in meters squared by
+ *   default. If $format is TRUE it will be converted and formatted using
+ *   growroom_area_format_calculated_area().
+ *
+ * @see growroom_area_format_calculated_area()
+ */
+function growroom_area_calculate_area_multiple($area_ids, $format = FALSE) {
+
+  // If there are no area IDs, bail.
+  if (empty($area_ids)) {
+    return '';
+  }
+
+  // Add up the total area.
+  $total_area = '';
+  foreach ($area_ids as $area_id) {
+    $area_area = growroom_area_calculate_area($area_id);
+    if (function_exists('bcadd')) {
+      $total_area = bcadd($total_area, $area_area);
+    }
+    else {
+      $total_area += $area_area;
+    }
+  }
+
+  // Return the area as a string (optionally formatted using the default
+  // system of measure).
+  if (!empty($format)) {
+    return growroom_area_format_calculated_area($total_area);
+  }
+  return $total_area;
+}
+
+/**
+ * Format a calculated area in the default system of measurement.
+ *
+ * @param int|float $measurement
+ *   The measurement of area to format, in square meters.
+ * @param bool $units
+ *   Boolean indicating whether or not to include units at the end of the
+ *   string.
+ *
+ * @return string
+ *   Returns a formatted string.
+ */
+function growroom_area_format_calculated_area($measurement, $units = TRUE) {
+
+  // If the measurement is empty or not a number, return an empty string.
+  if (empty($measurement) || !is_numeric($measurement)) {
+    return '0';
+  }
+
+  // Determine the relative size of the area.
+  $size = growroom_area_relative_size($measurement);
+
+  // Get the default units for the relative size.
+  $unit = growroom_area_default_units('area', $size);
+
+  // Convert the measurement to default units.
+  $converted = growroom_area_convert_area_units($measurement, $unit);
+
+  // Round to 2 decimal precision.
+  $output = (string) round($converted, 2);
+
+  // Return (optionally with units).
+  if (!empty($units)) {
+    return $output . ' ' . $unit;
+  }
+  return $output;
+}
+
+/**
+ * Convert an area from square meters to another unit.
+ *
+ * @param $input
+ *   The number to convert (assumed to be in square meters).
+ * @param string $unit
+ *   Specify the units to convert to. Must be one of: hectares, acres, or
+ *   square feet.
+ *
+ * @return string
+ *   Returns the converted number as string.
+ */
+function growroom_area_convert_area_units($input, $unit) {
+
+  // Define the available conversion units and their coefficients.
+  $conversion = array(
+    'square meters' => '1',
+    'hectares' => '0.0001',
+    'square feet' => '10.7639',
+    'acres' => '0.000247105',
+  );
+
+  // If the unit is not in the list, do nothing.
+  if (!array_key_exists($unit, $conversion)) {
+    return $input;
+  }
+
+  // Convert to the desired units.
+  if (function_exists('bcmul')) {
+    $output = bcmul($input, $conversion[$unit]);
+  }
+  else {
+    $output = $input * $conversion;
+  }
+
+  // Return the result.
+  return $output;
+}
+
+/**
+ * Subjectively define the relative size of an area measurement.
+ *
+ * @param $measurement
+ *   The area measurement value in square meters.
+ *
+ * @return string
+ *   Returns the subjective size of the area ('big' or 'small').
+ */
+function growroom_area_relative_size($measurement) {
+
+  // Start with an assumption that the area is big.
+  $size = 'big';
+
+  // Get the default units for the relative area size.
+  $units = growroom_area_default_units('area', 'big');
+
+  // If the converted value is less than 0.25, then the relative size is small.
+  if (growroom_area_convert_area_units($measurement, $units) < 0.25) {
+    $size = 'small';
+  }
+
+  // Return the relative size.
+  return $size;
+}
+
+/**
+ * Return the default units for an area measure, with optional relative size.
+ *
+ * @param string $measure
+ *   The measure to use.
+ *   Possible values are 'area' and 'length'. Defaults to 'area'.
+ * @param string $size
+ *   The relative size of the units to return.
+ *   Possible values are 'big' and 'small'. Defaults to 'big'.
+ *   For example, a $size of 'big' with a 'metric' system of measurement will
+ *   return 'hectares'. A $size of 'small' will return 'square meters'.
+ *
+ * @return string
+ *   Returns the a string representing the default units.
+ */
+function growroom_area_default_units($measure = 'area', $size = 'big') {
+
+  // Get the system of measurement.
+  $system = growroom_quantity_system_of_measurement();
+
+  // Define the default units for each system of measurement and size.
+  // The values returned by this function should exist in
+  // growroom_quantity_units(), for consistency.
+  $default_units = array(
+    'metric' => array(
+      'area' => array(
+        'big' => 'hectares',
+        'small' => 'square meters',
+      ),
+      'length' => array(
+        'big' => 'kilometers',
+        'small' => 'meters',
+      ),
+    ),
+    'us' => array(
+      'area' => array(
+        'big' => 'acres',
+        'small' => 'square feet',
+      ),
+      'length' => array(
+        'big' => 'miles',
+        'small' => 'feet',
+      ),
+    ),
+  );
+
+  // Return the units for the given system of measure and size.
+  $units = '';
+  if (!empty($default_units[$system][$measure][$size])) {
+    $units = $default_units[$system][$measure][$size];
+  }
+  return $units;
+}

@@ -1,0 +1,88 @@
+<?php
+/**
+ * @file
+ * Code for the Growroom Ledger feature.
+ */
+
+include_once 'growroom_ledger.features.inc';
+
+/**
+ * Implements hook_growroom_ui_entities().
+ */
+function growroom_ledger_growroom_ui_entities() {
+  return array(
+    'log' => array(
+      'growroom_purchase' => array(
+        'label' => t('Purchase'),
+        'label_plural' => t('Purchases'),
+        'view' => 'growroom_log_purchase',
+        'weight' => 90,
+      ),
+      'growroom_sale' => array(
+        'label' => t('Sale'),
+        'label_plural' => t('Sales'),
+        'view' => 'growroom_log_sale',
+        'weight' => 90,
+      ),
+    ),
+  );
+}
+
+/**
+ * Implements hook_feeds_importer_default_alter().
+ */
+function growroom_ledger_feeds_importer_default_alter(&$importers) {
+
+  // Add extra field mappings to sales.
+  $name = 'log_growroom_sale';
+  if (!empty($importers[$name])) {
+    $mappings = array(
+      array(
+        'source' => 'Customer',
+        'target' => 'field_growroom_customer',
+        'unique' => FALSE,
+        'language' => 'und',
+      ),
+      array(
+        'source' => 'Invoice number',
+        'target' => 'field_growroom_invoice_number',
+        'unique' => FALSE,
+        'language' => 'und',
+      ),
+      array(
+        'source' => 'Lot number',
+        'target' => 'field_growroom_lot_number',
+        'unique' => FALSE,
+        'language' => 'und',
+      ),
+      array(
+        'source' => 'Quantity',
+        'target' => 'field_growroom_quantity_value',
+        'unique' => FALSE,
+        'language' => 'und',
+      ),
+      array(
+        'source' => 'Units',
+        'target' => 'field_growroom_quantity_units',
+        'term_search' => '0',
+        'autocreate' => 1,
+        'unique' => FALSE,
+        'language' => 'und',
+      ),
+      array(
+        'source' => 'Unit price',
+        'target' => 'field_growroom_unit_price',
+        'unique' => FALSE,
+        'language' => 'und',
+      ),
+      array(
+        'source' => 'Total price',
+        'target' => 'field_growroom_total_price',
+        'unique' => FALSE,
+        'language' => 'und',
+      ),
+    );
+    $importer_mappings =& $importers[$name]->config['processor']['config']['mappings'];
+    $importer_mappings = array_merge($importer_mappings, $mappings);
+  }
+}

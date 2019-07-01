@@ -1,0 +1,19 @@
+name = Growroom Sensor: Listener
+description = Opens up a listener at /growroom/sensor/listener for receiving data from sensors as JSON and storing it in the database.
+core = 7.x
+package = growroomOS
+dependencies[] = ctools
+dependencies[] = growroom_sensor
+dependencies[] = features
+dependencies[] = fraction
+dependencies[] = views
+dependencies[] = views_data_export
+features[ctools][] = views:views_default:3.0
+features[features_api][] = api:2
+features[views_view][] = growroom_sensor_data
+
+; Information added by Drupal.org packaging script on 2018-11-14
+version = "7.x-0.01 beta"
+core = "7.x"
+project = "growroom"
+datestamp = "1542218112"

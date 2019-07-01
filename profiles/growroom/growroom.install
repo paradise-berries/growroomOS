@@ -1,0 +1,785 @@
+<?php
+
+/**
+ * @file
+ * growroomOS install file.
+ */
+
+/**
+ * Implements hook_install().
+ */
+function growroom_install() {
+
+  // Only admins can create new accounts.
+  variable_set('user_register', USER_REGISTER_ADMINISTRATORS_ONLY);
+
+  // Enable growroom theme and set as default.
+  theme_enable(array('growroom_theme'));
+  variable_set('theme_default', 'growroom_theme');
+
+  // Disable the default Bartik theme
+  theme_disable(array('bartik'));
+
+  // Set the front page to the growroom dashboard (provided by the growroom_admin).
+  variable_set('site_frontpage', 'growroom');
+
+  // Use the growroom menu for primary links (provided by growroom_admin).
+  variable_set('menu_main_links_source', 'growroom');
+
+  // Set the Openlayers library variant to local.
+  \Drupal\openlayers\Config::set('openlayers.variant', 'local:4.6.4');
+}
+
+/**
+ * Implements hook_install_tasks().
+ */
+function growroom_install_tasks(&$install_state) {
+  $tasks = array(
+    'growroom_install_configure_form' => array(
+      'display_name' => st('Configure growroomOS'),
+      'type' => 'form',
+    ),
+    'growroom_install_optional_modules' => array(
+      'display_name' => st('Install optional modules'),
+      'type' => 'batch',
+    ),
+  );
+  return $tasks;
+}
+
+/**
+ * Form callback for growroomOS configuration install task.
+ */
+function growroom_install_configure_form($form, &$form_state) {
+
+  // Set the page title.
+  drupal_set_title(st('Configure growroomOS'));
+
+  // Allow user to choose which high-level growroom modules to install.
+  // Default modules will be selected by default.
+  $default_modules = array(
+    'growroom_plants' => st('Plants'),
+    'growroom_equipment' => st('Equipment'),
+    'growroom_growmedia' => st('GrowMedia'),
+    'growroom_nutrients' => st('Nutrients'),
+    'growroom_agents' => st('Agents'),
+    'growroom_seeds' => st('Seeds'),
+    'growroom_consumables' => st('Consumables'),
+    'growroom_area_generate' => st('Area generator (for generating parallel beds within an area)'),
+    'growroom_log_input' => st('Input logs'),
+    'growroom_calendar' => st('Calendar of logs'),
+    'growroom_import' => st('CSV importers for assets and logs'),
+    'growroom_quick' => st('Quick forms UI'),
+    'growroom_area_generate' => st('Area generator (for generating parallel beds within an area)'),
+    'growroom_area_import' => st('Import areas in bulk from a single KML file'),
+    'growroom_area_types' => t('Default area types: Other, Storage, Processing, etc.'),
+    'growroom_access' => st('Default roles: Manager, Worker, Viewer'),
+    'growroom_solution' => st('Solution'),
+    'growroom_solution_test' => st('Solution test logs'),
+    'growroom_light' => st('Light'),
+    'growroom_light_test' => st('Light test logs'),
+    'growroom_water_test' => st('Water test logs'),
+    'growroom_help' => st('growroomOS Help Pages'),
+    'growroom_tour' => st('growroomOS Tours'),
+    'growroom_environment' => st('Environment'),
+    'growroom_pest' => st('Pest'),
+    'growroom_photoperiod' => st('Photoperiod'),
+    'growroom_photosynthesis' => st('Photosynthesis'),
+    'growroom_sterilization' => st('Sterilization'),
+    'growroom_maintenance' => st('Maintenance'),
+    'growroom_nutrition' => st('Nutrition'),
+  );
+  // Extra modules will not be selected by default.
+  $extra_modules = array(
+    'growroom_ledger' => st('Sale and purchase logs (beta)'),
+    'growroom_quantity_report' => st('Quantity report generator (beta)'),
+  );
+  $form['growroom_modules'] = array(
+    '#type' => 'checkboxes',
+    '#title' => st('growroomOS Modules'),
+    '#description' => st('Select the growroomOS modules that you would like installed by default.'),
+    '#options' => array_merge($default_modules, $extra_modules),
+    '#default_value' => array_keys($default_modules),
+  );
+
+  // Allow the user to select their default system of measurement.
+  $form['growroom_quantity_unit_system'] = array(
+    '#type' => 'radios',
+    '#title' => t('System of measurement'),
+    '#description' => t('Select the system of measurement you would like to use in growroomOS.'),
+    '#options' => array(
+      'metric' => t('Metric'),
+      'us' => t('US/Imperial'),
+    ),
+    '#default_value' => variable_get('growroom_quantity_unit_system', 'metric'),
+  );
+
+  // Allow the user to enter a Google Maps API key.
+  $form['growroom_map_google_api_key'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Google Maps API Key'),
+    '#description' => t('Google Maps layers require that you obtain an API key. Refer to the <a href="@doc">Google Maps API Key</a> documentation on growroomOS.org for instructions.', array('@doc' => 'https://growroomos.org/hosting/googlemaps')) . ' ' . t('This can also be done after installation. If no key is provided, OpenStreetMaps will be used as the default map base layer.'),
+    '#default_value' => variable_get('growroom_map_google_api_key', ''),
+  );
+
+  // Form actions.
+  $form['actions'] = array('#type' => 'actions');
+  $form['actions']['submit'] = array(
+    '#type' => 'submit',
+    '#value' => st('Continue'),
+  );
+
+  // Return the form.
+  return $form;
+}
+
+/**
+ * Submit function for growroomOS configuration install task form.
+ */
+function growroom_install_configure_form_submit($form, &$form_state) {
+
+  // Save the list of selected modules to a variable.
+  if (!empty($form_state['values']['growroom_modules'])) {
+    variable_set('growroom_install_optional_modules', $form_state['values']['growroom_modules']);
+  }
+
+  // Save the selected system of measure.
+  if (!empty($form_state['values']['growroom_quantity_unit_system'])) {
+    variable_set('growroom_quantity_unit_system', $form_state['values']['growroom_quantity_unit_system']);
+  }
+
+  // Save the Google Maps API key, and make Google Hybrid the default.
+  // If a Google Maps API key was not provided, make OpenStreetMap the default.
+  if (!empty($form_state['values']['growroom_map_google_api_key'])) {
+    variable_set('growroom_map_google_api_key', $form_state['values']['growroom_map_google_api_key']);
+    variable_set('growroom_map_default_base_layer', 'growroom_map_layer_google_hybrid');
+  }
+  else {
+    variable_set('growroom_map_default_base_layer', 'growroom_map_layer_openstreetmap');
+  }
+}
+
+/**
+ * Callback function for installing optional growroomOS modules via Batch API.
+ */
+function growroom_install_optional_modules() {
+
+  // Load the list of modules to install.
+  $modules = variable_get('growroom_install_optional_modules', array());
+
+  // Load list of module names.
+  $files = system_rebuild_module_data();
+
+  // Start an array of batch operations.
+  $operations = array();
+
+  // Add operation to enable selected modules.
+  foreach ($modules as $module => $enable) {
+    if (!empty($enable)) {
+      $operations[] = array('_growroom_install_enable_module', array($module, $files[$module]->info['name']));
+    }
+  }
+
+  // Assemble the Batch API.
+  $batch = array(
+    'title' => t('Installing optional modules'),
+    'operations' => $operations,
+  );
+
+  // Return the Batch API.
+  return $batch;
+}
+
+/**
+ * BatchAPI callback: enable a module.
+ *
+ * @see growroom_install_optional_modules()
+ */
+function _growroom_install_enable_module($module, $module_name, &$context) {
+  module_enable(array($module));
+  $context['message'] = st('Installed %module module.', array('%module' => $module_name));
+}
+
+/**
+ * Implements hook_update_dependencies().
+ */
+function growroom_update_dependencies() {
+
+  // growroom_plants_7000() and growroom_equipment_update_7000 both depend on
+  // growroom_update_7000() because they use the new field_bases provided by
+  // growroom_fields.
+  $growroom_7000 = array(
+    'growroom' => 7000,
+  );
+  $dependencies['growroom_equipment'][7000] = $growroom_7000;
+  $dependencies['growroom_plants'][7000] = $growroom_7000;
+
+  // growroom_plants_7001() depends on growroom_update_7019() because it uses the new
+  // field_growroom_parent field from the growroom_asset_children module.
+  $dependencies['growroom_plants'][7001] = array('growroom' => 7019);
+
+  return $dependencies;
+}
+
+/**
+ * Enable the Growroom Fields module.
+ */
+function growroom_update_7000(&$sandbox) {
+
+  // Install the growroom_fields module and revert the field_base component on it,
+  // so that they are available to update hooks in other modules.
+  //
+  // Between growroomOS 7.x-1.0-beta2 and 7.x-1.0-beta3, we upgraded from
+  // Features 1.x to 2.x. This replaced the 'field' component with
+  // 'field_base' and 'field_instance'. At the same time, a new module was
+  // introduced, to serve as a place to put common field_bases: growroom_fields.
+  if (!module_exists('growroom_fields')) {
+
+    // Enable the growroom_fields module.
+    module_enable(array('growroom_fields'));
+
+    // Reset the "default_hook" static cache for field_base Features components.
+    module_load_include('inc', 'features', 'features.export');
+    features_get_default_hooks('field_base', TRUE);
+
+    // Load the growroom_fields field_base Features include file, otherwise
+    // feature_get_default() will not see it, and the revert will fail.
+    module_load_include('inc', 'growroom_fields', 'growroom_fields.features.field_base');
+
+    // Revert the field_base component of growroom_fields.
+    features_revert(array('growroom_fields' => array('field_base')));
+  }
+}
+
+/**
+ * Update to Openlayers 3
+ */
+function growroom_update_7001(&$sandbox) {
+
+  // Enable new module dependencies.
+  $modules = array(
+    'openlayers_geofield',
+    'views_geojson',
+  );
+  _growroom_update_enable_modules($modules);
+}
+
+/**
+ * Enable Entity Reference View Widget.
+ */
+function growroom_update_7002(&$sandbox) {
+
+  // Enable new module dependencies.
+  $modules = array(
+    'entityreference_view_widget',
+  );
+  _growroom_update_enable_modules($modules);
+}
+
+/**
+ * Use the growroom menu for primary links.
+ */
+function growroom_update_7003(&$sandbox) {
+  variable_set('menu_main_links_source', 'growroom');
+}
+
+/**
+ * Enable the RESTful Web Services module.
+ */
+function growroom_update_7004(&$sandbox) {
+  _growroom_update_enable_modules(array('restws'));
+}
+
+/**
+ * Load Openlayers via CDN.
+ */
+function growroom_update_7005(&$sandbox) {
+
+  // Enable the Libraries CDN module.
+  _growroom_update_enable_modules(array('libraries_cdn'));
+
+  // Load Openlayers 3.8.2 from JSDelivr CDN.
+  \Drupal\openlayers\Config::set('openlayers.variant', 'jsdelivr:ol3:3.8.2');
+}
+
+/**
+ * Autorotate images.
+ */
+function growroom_update_7006(&$sandbox) {
+
+  // Enable the EXIF Orientation module.
+  _growroom_update_enable_modules(array('exif_orientation'));
+}
+
+/**
+ * Install Growroom Access and Role Delegation, uninstall Growroom Manager.
+ */
+function growroom_update_7007(&$sandbox) {
+
+  // Enable the Growroom Access and Role Delegation modules.
+  _growroom_update_enable_modules(array('growroom_access', 'role_delegation'));
+
+  // Disable and uninstall the Growroom Manager module.
+  $module = 'growroom_manager';
+  if (module_exists($module)) {
+    module_disable(array($module));
+    drupal_uninstall_modules(array($module));
+  }
+}
+
+/**
+ * Install Growroom Tour.
+ */
+function growroom_update_7008(&$sandbox) {
+
+  // Enable the Growroom Access and Role Delegation modules.
+  _growroom_update_enable_modules(array('growroom_tour'));
+}
+
+/**
+ * Enable "Request new password" link on 403 pages (via LoginToboggan).
+ */
+function growroom_update_7009(&$sandbox) {
+  variable_set('logintoboggan_site_403_user_login_block', TRUE);
+}
+
+/**
+ * Recalculate all Geofield metadata, using BCMath (patched GeoPHP module), so
+ * centroids are correct.
+ */
+function growroom_update_7010(&$sandbox) {
+
+  // Process this in passes of 50 at a time.
+  $sandbox['#finished'] = 0;
+  $limit = 50;
+
+  // Keep track of progress.
+  if (!isset($sandbox['progress'])) {
+
+    // Start out at zero.
+    $sandbox['progress'] = 0;
+
+    // Figure out which entity types/bundles have geofields.
+    $sandbox['geofields'] = array();
+    $query = "SELECT fci.entity_type, fci.bundle, fc.field_name FROM {field_config_instance} fci LEFT JOIN {field_config} fc ON fc.id = fci.field_id WHERE fc.type = 'geofield'";
+    $result = db_query($query);
+    foreach ($result as $row) {
+      $sandbox['geofields'][$row->entity_type][$row->bundle] = $row->field_name;
+    }
+
+    // Build an array of all the entities that need to be processed, and take a
+    // count of the total.
+    $sandbox['entities'] = array();
+    $sandbox['total'] = 0;
+    foreach ($sandbox['geofields'] as $entity_type => $bundles) {
+      $sandbox['entities'][$entity_type] = array();
+      foreach ($bundles as $bundle => $field_name) {
+        $query = new EntityFieldQuery;
+        $query->entityCondition('entity_type', $entity_type)
+          ->entityCondition('bundle', $bundle);
+        $results = $query->execute();
+        if (isset($results[$entity_type])) {
+          $sandbox['entities'][$entity_type] = array_merge($sandbox['entities'][$entity_type], $results[$entity_type]);
+          $sandbox['total'] += count($results[$entity_type]);
+        }
+      }
+    }
+  }
+
+  // Process the next set of entities.
+  $i = 0;
+  while ($i < $limit && $sandbox['progress'] < $sandbox['total']) {
+
+    // Get the entity array keys, which correspond to the entity types.
+    $keys = array_keys($sandbox['entities']);
+
+    // If the first array in the list of entities is empty, remove it.
+    if (empty($sandbox['entities'][$keys[0]])) {
+      array_shift($sandbox['entities']);
+      array_shift($keys);
+    }
+
+    // The first key is the entity type we're currently working with.
+    $entity_type = $keys[0];
+
+    // Shift the next entity off the front of the list.
+    $info = array_shift($sandbox['entities'][$entity_type]);
+
+    // Load the entity.
+    $id = reset($info);
+    $entities = entity_load($entity_type, array($id));
+    $entity = reset($entities);
+
+    // Look up which field this bundle is using.
+    $wrapper = entity_metadata_wrapper($entity_type, $id);
+    $bundle = $wrapper->getBundle();
+    $field_name = $sandbox['geofields'][$entity_type][$bundle];
+
+    // If the geofield 'geom' value is not empty...
+    if (!empty($entity->{$field_name}[LANGUAGE_NONE][0]['geom'])) {
+
+      // Save the entity, so that geofield_field_presave() runs and regenerates
+      // the other geometry metadata values.
+      entity_save($entity_type, $entity);
+    }
+
+    // Increment $i and $sandbox['progress'].
+    $i++;
+    $sandbox['progress']++;
+  }
+
+  // Tell Drupal whether or not we're finished.
+  if ($sandbox['total'] > 0) {
+    $sandbox['#finished'] = $sandbox['progress'] / $sandbox['total'];
+  }
+  else {
+    $sandbox['#finished'] = 1;
+  }
+}
+
+/**
+ * Load Openlayers 3.10.1 from CDNJS.
+ */
+function growroom_update_7011(&$sandbox) {
+  \Drupal\openlayers\Config::set('openlayers.variant', 'cdnjs:ol3:3.10.1');
+}
+
+/**
+ * Load Openlayers 3.11.2 from CDNJS.
+ */
+function growroom_update_7012(&$sandbox) {
+  \Drupal\openlayers\Config::set('openlayers.variant', 'cdnjs:ol3:3.11.2');
+}
+
+/**
+ * Uninstall Views Data Export.
+ */
+function growroom_update_7013(&$sandbox) {
+  $module = 'views_data_export';
+  if (module_exists($module)) {
+    module_disable(array($module));
+    drupal_uninstall_modules(array($module));
+  }
+}
+
+/**
+ * Uninstall Filefield Paths.
+ */
+function growroom_update_7014(&$sandbox) {
+  $module = 'filefield_paths';
+  if (module_exists($module)) {
+    module_disable(array($module));
+    drupal_uninstall_modules(array($module));
+  }
+}
+
+/**
+ * Uninstall Panels and Page Manager.
+ */
+function growroom_update_7015(&$sandbox) {
+  $modules = array(
+    'page_manager',
+    'panels',
+  );
+  module_disable($modules);
+  drupal_uninstall_modules($modules);
+}
+
+/**
+ * Uninstall Logintoboggan.
+ */
+function growroom_update_7016(&$sandbox) {
+  variable_del('site_403');
+  variable_del('logintoboggan_login_with_email');
+  variable_del('logintoboggan_site_403_user_login_block');
+}
+
+/**
+ * Install Growroom Quantity and Growroom Area Generator modules.
+ */
+function growroom_update_7017(&$sandbox) {
+  _growroom_update_enable_modules(array('growroom_area_generate', 'growroom_quantity'));
+}
+
+/**
+ * Uninstall Log Plan module.
+ */
+function growroom_update_7018(&$sandbox) {
+  $modules = array(
+    'log_plan',
+  );
+  module_disable($modules);
+  drupal_uninstall_modules($modules);
+}
+
+/**
+ * Install Growroom Asset Children module.
+ */
+function growroom_update_7019(&$sandbox) {
+
+  // Enable the Growroom Asset Children module.
+  _growroom_update_enable_modules(array('growroom_asset_children'));
+
+  // Reset the "default_hook" static cache for field_base Features components.
+  module_load_include('inc', 'features', 'features.export');
+  features_get_default_hooks('field_base', TRUE);
+
+  // Load the growroom_asset_children field_base Features include file, otherwise
+  // feature_get_default() will not see it, and the revert will fail.
+  module_load_include('inc', 'growroom_asset_children', 'growroom_asset_children.features.field_base');
+
+  // Revert the field_base component of growroom_asset_children.
+  features_revert(array('growroom_asset_children' => array('field_base')));
+}
+
+/**
+ * Install Views Data Export.
+ */
+function growroom_update_7020(&$sandbox) {
+  _growroom_update_enable_modules(array('views_data_export'));
+}
+
+/**
+ * Install Multiupload Filefield and Imagefield Widget modules.
+ */
+function growroom_update_7021(&$sandbox) {
+  _growroom_update_enable_modules(array('multiupload_filefield_widget', 'multiupload_imagefield_widget'));
+}
+
+/**
+ * Install Field Group module.
+ */
+function growroom_update_7022(&$sandbox) {
+  _growroom_update_enable_modules(array('field_group'));
+}
+
+/**
+ * Change the Bootswatch theme to Simplex 3.3.7.
+ */
+function growroom_update_7023(&$sandbox) {
+  $theme_settings = variable_get('theme_growroom_theme_settings', array());
+  $theme_settings['bootstrap_cdn_provider'] = 'custom';
+  $theme_settings['bootstrap_cdn_custom_css'] = '//cdn.jsdelivr.net/bootswatch/3.3.7/simplex/bootstrap.css';
+  $theme_settings['bootstrap_cdn_custom_css_min'] = '//cdn.jsdelivr.net/bootswatch/3.3.7/simplex/bootstrap.min.css';
+  $theme_settings['bootstrap_cdn_custom_js'] = '//cdn.jsdelivr.net/bootstrap/3.3.7/js/bootstrap.js';
+  $theme_settings['bootstrap_cdn_custom_js_min'] = '//cdn.jsdelivr.net/bootstrap/3.3.7/js/bootstrap.min.js';
+  variable_set('theme_growroom_theme_settings', $theme_settings);
+}
+
+/**
+ * Populate all log owner fields with the log's author.
+ */
+function growroom_update_7024(&$sandbox) {
+
+  // Revert the growroom_fields feature to ensure that the new field is available.
+  features_revert(array('growroom_fields' => array('field_base')));
+
+  // Copy user id from {log} table.
+  $select = "SELECT 'log' AS entity_type, type AS bundle, 0 AS deleted, id AS entity_id, id AS revision_id, 'und' AS language, 0 AS delta, uid AS field_growroom_log_owner_target_id FROM {log}";
+  db_query('INSERT INTO {field_data_field_growroom_log_owner} (' . $select . ')');
+  db_query('INSERT INTO {field_revision_field_growroom_log_owner} (' . $select . ')');
+}
+
+/**
+ * Install the new Growroom Dashboard, Help, Menu, People, and UI modules.
+ */
+function growroom_update_7025(&$sandbox) {
+
+  // Enable new modules.
+  $modules = array(
+    'growroom_dashboard',
+    'growroom_help',
+    'growroom_menu',
+    'growroom_people',
+    'growroom_ui',
+  );
+  _growroom_update_enable_modules($modules);
+
+  // Delete the growroom_admin module.
+  db_delete('system')
+    ->condition('name', 'growroom_admin')
+    ->condition('type', 'module')
+    ->execute();
+}
+
+/**
+ * Install the new Growroom Import module.
+ */
+function growroom_update_7026(&$sandbox) {
+  _growroom_update_enable_modules(array('growroom_import'));
+}
+
+/**
+ * Enable new Growroom Season module and remove Growroom Taxonomy.
+ */
+function growroom_update_7027(&$sandbox) {
+
+  // Enable Growroom Season.
+  _growroom_update_enable_modules(array('growroom_season'));
+
+  // Delete the growroom_taxonomy module.
+  db_delete('system')
+    ->condition('name', 'growroom_taxonomy')
+    ->condition('type', 'module')
+    ->execute();
+}
+
+/**
+ * Update Openlayers JS library to 4.3.3.
+ */
+function growroom_update_7028(&$sandbox) {
+  \Drupal\openlayers\Config::set('openlayers.variant', 'cdnjs:ol3:4.3.3');
+}
+
+/**
+ * Enable Field Group: Easy Responsive Tabs to Accordion.
+ */
+function growroom_update_7029(&$sandbox) {
+  _growroom_update_enable_modules(array('field_group_easy_responsive_tabs'));
+}
+
+/**
+ * Enable the Drupal Help module for inline help text.
+ */
+function growroom_update_7030(&$sandbox) {
+  _growroom_update_enable_modules(array('help'));
+}
+
+/**
+ * Rename growroom_log_movement to growroom_movement in the {system} table.
+ */
+function growroom_update_7031(&$sandbox) {
+
+  // Drupal will autodetect growroom_movement as a new module, and will think
+  // growroom_log_movement is missing - so we need to do some tricky
+  // bait-and-switch to rename the module and ensure that it stays enabled.
+
+  // Load the {system} record for growroom_log_movement, and make our modifications.
+  $record = db_query("SELECT * FROM {system} WHERE name = 'growroom_log_movement' AND type = 'module'")->fetch();
+  $record->name = str_replace('growroom_log_movement', 'growroom_movement', $record->name);
+  $record->filename = str_replace('growroom_log/growroom_log_movement', 'growroom_movement', $record->filename);
+  $record->status = 1;
+
+  // Delete any growroom_log_movement and growroom_movement records.
+  db_query("DELETE FROM {system} WHERE name = 'growroom_log_movement' AND type = 'module'");
+  db_query("DELETE FROM {system} WHERE name = 'growroom_movement' AND type = 'module'");
+
+  // Re-save the original record.
+  drupal_write_record('system', $record);
+}
+
+/**
+ * Enable new Growroom Inventory module.
+ */
+function growroom_update_7032(&$sandbox) {
+  _growroom_update_enable_modules(array('growroom_inventory'));
+}
+
+/**
+ * Enable new Growroom Group module.
+ */
+function growroom_update_7033(&$sandbox) {
+  _growroom_update_enable_modules(array('growroom_group'));
+}
+
+/**
+ * Enable new Growroom Calendar module.
+ */
+function growroom_update_7034(&$sandbox) {
+  _growroom_update_enable_modules(array('growroom_calendar'));
+}
+
+/**
+ * Set the Bootstrap navbar position to "Fixed Top".
+ */
+function growroom_update_7035(&$sandbox) {
+  $theme_settings = variable_get('theme_growroom_theme_settings', array());
+  $theme_settings['bootstrap_navbar_position'] = 'fixed-top';
+  variable_set('theme_growroom_theme_settings', $theme_settings);
+}
+
+/**
+ * Enable new Growroom Constraint module.
+ */
+function growroom_update_7036(&$sandbox) {
+  _growroom_update_enable_modules(array('growroom_constraint'));
+}
+
+/**
+ * Enable new Growroom Asset Views module.
+ */
+function growroom_update_7037(&$sandbox) {
+  _growroom_update_enable_modules(array('growroom_asset_views'));
+}
+
+/**
+ * Update Openlayers JS library to 4.6.4.
+ */
+function growroom_update_7038(&$sandbox) {
+  \Drupal\openlayers\Config::set('openlayers.variant', 'cdnjs:ol3:4.6.4');
+}
+
+/**
+ * Enable new Growroom Flags module.
+ */
+function growroom_update_7039(&$sandbox) {
+  _growroom_update_enable_modules(array('growroom_flags'));
+}
+
+/**
+ * Enable new Growroom Quantity Log module.
+ */
+function growroom_update_7040(&$sandbox) {
+  _growroom_update_enable_modules(array('growroom_quantity_log'));
+}
+
+/**
+ * Enable new Growroom Map KML module.
+ */
+function growroom_update_7041(&$sandbox) {
+  _growroom_update_enable_modules(array('growroom_map_kml'));
+}
+
+/**
+ * Enable new Growroom API module.
+ */
+function growroom_update_7042(&$sandbox) {
+  _growroom_update_enable_modules(array('growroom_api'));
+}
+
+/**
+ * Enable Growroom Quick module.
+ */
+function growroom_update_7043(&$sandbox) {
+  _growroom_update_enable_modules(array('growroom_quick'));
+}
+
+/**
+ * Enable Growroom Term module.
+ */
+function growroom_update_7044(&$sandbox) {
+  _growroom_update_enable_modules(array('growroom_term'));
+}
+
+/**
+ * Use local OpenLayers JS library instead of CDN.
+ */
+function growroom_update_7045(&$sandbox) {
+
+  // Set the variant config in the Openlayers module.
+  \Drupal\openlayers\Config::set('openlayers.variant', 'local:4.6.4');
+
+  // Uninstall Libraries CDN.
+  db_query("DELETE FROM {system} WHERE name = 'libraries_cdn' AND type = 'module'");
+}
+
+/**
+ * Update helper function: enable modules.
+ */
+function _growroom_update_enable_modules($modules = array()) {
+  foreach ($modules as $module) {
+    if (!module_exists($module)) {
+      module_enable(array($module));
+    }
+  }
+}

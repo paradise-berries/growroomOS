@@ -1,0 +1,32 @@
+<?php
+/**
+ * @file
+ * Growroom menu module.
+ */
+
+/**
+ * Implements hook_modules_installed().
+ */
+function growroom_menu_modules_installed($modules) {
+
+  // If the Menu module is installed, create the growroom menu.
+  if (in_array('menu', $modules)) {
+    growroom_menu_create();
+  }
+}
+
+/**
+ * Generate the growroom menu.
+ *
+ * @see growroom_menu_enable()
+ * @see growroom_menu_install_modules()
+ */
+function growroom_menu_create() {
+  $t = get_t();
+  $menu = array(
+    'menu_name' => 'growroom',
+    'title' => $t('Growroom'),
+    'description' => $t('Growroom management links'),
+  );
+  menu_save($menu);
+}

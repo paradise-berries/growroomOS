@@ -1,0 +1,73 @@
+<?php
+/**
+ * @file
+ * Code for the Growroom Photosynthesis feature.
+ */
+
+include_once 'growroom_photosynthesis.features.inc';
+
+/**
+ * Implements hook_help().
+ */
+function growroom_photosynthesis_help($path, $arg) {
+
+  // Add help text to the photosynthesis plan list page.
+  if ($path == 'growroom/plans/photosynthesis') {
+    $help = '<p>' . t("This page lists all photosynthesis management plans. Select one from the list below to view it, or click \"Add photosynthesis management plan\" to create a new one.") . '</p>';
+    $help .= '<p>' . t("Plans can be archived for future reference. To view archived plans, use the \"Filter/sort\" options in the list below.") . '</p>';
+    return $help;
+  }
+
+  // If the path starts with 'growroom/plan/%', then load the plan and see if it is
+  // a photosynthesis plan. If not, bail. Otherwise continue.
+  if (strpos($path, 'growroom/plan/%') === 0) {
+    $plan = growroom_plan_load($arg[2]);
+    if (empty($plan) || $plan->type != 'photosynthesis') {
+      return '';
+    }
+  }
+
+  // Add help text to all growroom/plan/% paths.
+  switch ($path) {
+
+    // Plan add/edit form.
+    case 'growroom/plan/add/photosynthesis':
+    case 'growroom/plan/%/edit':
+      $help = '<p>' . t('Use the form below to define the specifics for this photosynthesis management plan.') . '</p>';
+      $help .= '<p>' . t('A plan has a name, a date range, a season (optional), and any additional notes you want to include. You can reference the areas that this plan pertains to.') . '</p>';
+      $help .= '<p>' . t('Upload your photosynthesis management planning files and documents to the "Files" field for easy reference.') . '</p>';
+      return $help;
+
+    // Plan view page.
+    case 'growroom/plan/%':
+    case 'growroom/plan/%/view':
+      $help = '<p>' . t('This page summarizes the details of this photosynthesis management plan.') . '</p>';
+      $help .= '<p>' . t('To edit the plan, click the "Settings" tab.') . '</p>';
+      return $help;
+  }
+}
+/**
+ * Implements hook_growroom_ui_entities().
+ */
+function growroom_photosynthesis_growroom_ui_entities() {
+  return array(
+    'growroom_plan' => array(
+      'photosynthesis' => array(
+        'label' => t('Photosynthesis Management Plan'),
+        'label_plural' => t('Photosynthesis Management Plans'),
+        'view' => 'growroom_photosynthesis_plan',
+      ),
+    ),
+  );
+}
+
+/**
+ * Implements hook_bootstrap_iconize_text_alter().
+ */
+function growroom_photosynthesis_bootstrap_iconize_text_alter(&$texts) {
+
+  // The Bootstrap theme automatically adds a cog icon to buttons that contain
+  // the string "manage", so we need to explicitly override that here to use
+  // the plus icon (for consistency with other buttons that begin with "Add").
+  $texts['matches'][t('Add photosynthesis management plan')] = 'plus';
+}

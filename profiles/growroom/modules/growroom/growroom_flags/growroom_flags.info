@@ -1,0 +1,14 @@
+name = Growroom Flags
+description = Provides a general purpose record flagging system.
+core = 7.x
+package = growroomOS
+dependencies[] = features
+dependencies[] = list
+features[features_api][] = api:2
+features[field_base][] = field_growroom_flags
+
+; Information added by Drupal.org packaging script on 2018-11-14
+version = "7.x-0.01 beta"
+core = "7.x"
+project = "growroom"
+datestamp = "1542218112"

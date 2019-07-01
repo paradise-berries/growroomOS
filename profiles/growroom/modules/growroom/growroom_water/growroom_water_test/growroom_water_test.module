@@ -1,0 +1,55 @@
+<?php
+/**
+ * @file
+ * Code for the Growroom Water Test feature.
+ */
+
+include_once 'growroom_water_test.features.inc';
+
+/**
+ * Implements hook_growroom_ui_entities().
+ */
+function growroom_water_test_growroom_ui_entities() {
+  return array(
+    'log' => array(
+      'growroom_water_test' => array(
+        'label' => t('Water test'),
+        'label_plural' => t('Water test'),
+        'view' => 'growroom_water_test',
+        'growroom_asset' => 'none',
+        'areas' => TRUE,
+      ),
+    ),
+  );
+}
+
+/**
+ * Implements hook_growroom_log_categories_populate().
+ */
+function growroom_water_test_growroom_log_categories_populate($log) {
+  $categories = array();
+  if ($log->type == 'growroom_water_test') {
+    $categories[] = 'Water';
+  }
+  return $categories;
+}
+
+/**
+ * Implements hook_feeds_importer_default_alter().
+ */
+function growroom_water_test_feeds_importer_default_alter(&$importers) {
+
+  // Add extra field mappings to water tests.
+  $name = 'log_growroom_water_test';
+  if (!empty($importers[$name])) {
+    $mappings = array(
+      array(
+        'source' => 'Laboratory',
+        'target' => 'field_growroom_water_lab',
+        'unique' => FALSE,
+      ),
+    );
+    $importer_mappings =& $importers[$name]->config['processor']['config']['mappings'];
+    $importer_mappings = array_merge($importer_mappings, $mappings);
+  }
+}

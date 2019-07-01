@@ -1,0 +1,132 @@
+<?php
+/**
+ * @file
+ * Code for the Growroom Nutrients feature.
+ */
+
+include_once 'growroom_nutrients.features.inc';
+
+/**
+ * Implements hook_growroom_ui_entities().
+ */
+function growroom_nutrients_growroom_ui_entities() {
+  return array(
+    'growroom_asset' => array(
+      'nutrients' => array(
+        'label' => t('Nutrients'),
+        'label_plural' => t('Nutrients'),
+        'view' => 'growroom_nutrients',
+      ),
+    ),
+    'log' => array(
+      'growroom_mixing' => array(
+        'label' => t('Mixing'),
+        'label_plural' => t('Mixing'),
+        'view' => 'growroom_log_mixing',
+        'growroom_asset' => 'nutrients',
+        'weight' => 20,
+      ),
+    ),
+  );
+}
+
+/**
+ * Implements hook_growroom_log_categories().
+ */
+function growroom_nutrients_growroom_log_categories() {
+
+  // Provide an "Nutrients" log category.
+  return array('Nutrients');
+}
+
+/**
+ * Implements hook_growroom_log_categories_populate().
+ */
+function growroom_nutrients_growroom_log_categories_populate($log) {
+  $categories = array();
+  if ($log->type == 'growroom_mixing') {
+    $categories[] = 'Nutrients';
+  }
+  return $categories;
+}
+
+/**
+ * Implements hook_feeds_importer_default_alter().
+ */
+function growroom_nutrients_feeds_importer_default_alter($importers) {
+
+  // Add extra field mappings to nutrients.
+  $name = 'growroom_asset_nutrients';
+  if (!empty($importers[$name])) {
+    $mappings = array(
+      array(
+        'source' => 'Chemical',
+        'target' => 'field_growroom_chemical',
+        'unique' => FALSE,
+        'language' => 'und',
+      ),
+      array(
+        'source' => 'Alias',
+        'target' => 'field_growroom_alias',
+        'unique' => FALSE,
+        'language' => 'und',
+      ),
+      array(
+        'source' => 'Brand',
+        'target' => 'field_growroom_brand',
+        'unique' => FALSE,
+        'language' => 'und',
+      ),
+      array(
+        'source' => 'Source',
+        'target' => 'field_growroom_source',
+        'unique' => FALSE,
+        'language' => 'und',
+      ),
+      array(
+        'source' => 'Form',
+        'target' => 'field_growroom_form',
+        'unique' => FALSE,
+        'language' => 'und',
+      ),
+      array(
+        'source' => 'Specifications',
+        'target' => 'field_growroom_specifications',
+        'unique' => FALSE,
+        'language' => 'und',
+      ),
+      array(
+        'source' => 'Purpose',
+        'target' => 'field_growroom_purpose',
+        'unique' => FALSE,
+        'language' => 'und',
+      ),  
+      array(
+        'source' => 'Method',
+        'target' => 'field_growroom_method',
+        'unique' => FALSE,
+        'language' => 'und',
+      ),
+      array(
+        'source' => 'Storage',
+        'target' => 'field_growroom_storage',
+        'unique' => FALSE,
+        'language' => 'und',
+      ),
+      array(
+        'source' => 'Shelf Life',
+        'target' => 'field_growroom_shelf_life',
+        'unique' => FALSE,
+        'language' => 'und',
+      ),  
+      array(
+        'source' => 'Warnings',
+        'target' => 'field_growroom_warnings',
+        'unique' => FALSE,
+        'language' => 'und',
+      ),
+    );
+    $importer_mappings =& $importers[$name]->config['processor']['config']['mappings'];
+    $importer_mappings = array_merge($importer_mappings, $mappings);
+  }
+}

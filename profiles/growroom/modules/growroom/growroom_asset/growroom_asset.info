@@ -1,0 +1,15 @@
+name = Growroom Asset
+description = A growroom asset entity type.
+core = 7.x
+package = growroomOS
+dependencies[] = entity
+files[] = growroom_asset.class.inc
+files[] = includes/feeds/plugins/GrowroomAssetProcessor.inc
+files[] = includes/views/handlers/growroom_asset_handler_relationship_entity_reverse.inc
+files[] = includes/views/plugins/growroom_asset_plugin_argument_validate_growroom_asset.inc
+
+; Information added by Drupal.org packaging script on 2018-11-14
+version = "7.x-0.01 beta"
+core = "7.x"
+project = "growroom"
+datestamp = "1542218112"

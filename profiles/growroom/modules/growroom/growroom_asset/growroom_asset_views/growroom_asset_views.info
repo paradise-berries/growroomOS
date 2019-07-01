@@ -1,0 +1,25 @@
+name = Growroom Asset Views
+description = Default Views of growroom assets.
+core = 7.x
+package = growroomOS
+dependencies[] = ctools
+dependencies[] = entity
+dependencies[] = entity_token
+dependencies[] = entityreference
+dependencies[] = entityreference_view_widget
+dependencies[] = growroom_asset
+dependencies[] = growroom_group
+dependencies[] = growroom_movement
+dependencies[] = features
+dependencies[] = views
+dependencies[] = views_bulk_operations
+features[ctools][] = views:views_default:3.0
+features[features_api][] = api:2
+features[views_view][] = growroom_asset
+features[views_view][] = growroom_asset_entityreference_view
+
+; Information added by Drupal.org packaging script on 2018-11-14
+version = "7.x-0.01 beta"
+core = "7.x"
+project = "growroom"
+datestamp = "1542218112"
