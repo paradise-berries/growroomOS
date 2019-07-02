@@ -137,6 +137,132 @@ function growroom_plants_views_default_views() {
   $export['growroom_individual_cultivars'] = $view;
   
   $view = new view();
+  $view->name = 'growroom_individual_alias';
+  $view->description = '';
+  $view->tag = 'growroom_plants';
+  $view->base_table = 'taxonomy_term_data';
+  $view->human_name = 'Growroom Individual Alias';
+  $view->core = 7;
+  $view->api_version = '3.0';
+  $view->disabled = FALSE; /* Edit this to true to make a default view disabled initially */
+
+  /* Display: Master */
+  $handler = $view->new_display('default', 'Master', 'default');
+  $handler->display->display_options['title'] = 'Alias';
+  $handler->display->display_options['css_class'] = 'views-tree';
+  $handler->display->display_options['use_more_always'] = FALSE;
+  $handler->display->display_options['group_by'] = TRUE;
+  $handler->display->display_options['access']['type'] = 'perm';
+  $handler->display->display_options['access']['perm'] = 'view any individual growroom assets';
+  $handler->display->display_options['cache']['type'] = 'none';
+  $handler->display->display_options['query']['type'] = 'views_query';
+  $handler->display->display_options['exposed_form']['type'] = 'basic';
+  $handler->display->display_options['exposed_form']['options']['reset_button'] = TRUE;
+  $handler->display->display_options['pager']['type'] = 'none';
+  $handler->display->display_options['pager']['options']['offset'] = '0';
+  $handler->display->display_options['style_plugin'] = 'tree';
+  $handler->display->display_options['style_options']['main_field'] = 'tid';
+  $handler->display->display_options['style_options']['parent_field'] = 'tid_1';
+  $handler->display->display_options['row_plugin'] = 'fields';
+  $handler->display->display_options['row_options']['inline'] = array(
+    'name' => 'name',
+    'id' => 'id',
+  );
+  /* Header: Global: Unfiltered text */
+  $handler->display->display_options['header']['area_text_custom']['id'] = 'area_text_custom';
+  $handler->display->display_options['header']['area_text_custom']['table'] = 'views';
+  $handler->display->display_options['header']['area_text_custom']['field'] = 'area_text_custom';
+  $handler->display->display_options['header']['area_text_custom']['content'] = '<h4>Hierarchy <small><a href="/admin/structure/taxonomy/growroom_individual_alias?destination=growroom/assets/individuals/alias">(change)</a></small></h4>';
+  /* No results behavior: Global: Unfiltered text */
+  $handler->display->display_options['empty']['area_text_custom']['id'] = 'area_text_custom';
+  $handler->display->display_options['empty']['area_text_custom']['table'] = 'views';
+  $handler->display->display_options['empty']['area_text_custom']['field'] = 'area_text_custom';
+  $handler->display->display_options['empty']['area_text_custom']['empty'] = TRUE;
+  $handler->display->display_options['empty']['area_text_custom']['content'] = 'No alias found.';
+  /* Relationship: Taxonomy term: Parent term */
+  $handler->display->display_options['relationships']['parent']['id'] = 'parent';
+  $handler->display->display_options['relationships']['parent']['table'] = 'taxonomy_term_hierarchy';
+  $handler->display->display_options['relationships']['parent']['field'] = 'parent';
+  /* Relationship: Taxonomy term: Growroom asset using Alias */
+  $handler->display->display_options['relationships']['reverse_field_growroom_individual_alias_growroom_asset']['id'] = 'reverse_field_growroom_individual_alias_growroom_asset';
+  $handler->display->display_options['relationships']['reverse_field_growroom_individual_alias_growroom_asset']['table'] = 'taxonomy_term_data';
+  $handler->display->display_options['relationships']['reverse_field_growroom_individual_alias_growroom_asset']['field'] = 'reverse_field_growroom_individual_alias_growroom_asset';
+  /* Field: Taxonomy term: Term ID */
+  $handler->display->display_options['fields']['tid']['id'] = 'tid';
+  $handler->display->display_options['fields']['tid']['table'] = 'taxonomy_term_data';
+  $handler->display->display_options['fields']['tid']['field'] = 'tid';
+  $handler->display->display_options['fields']['tid']['exclude'] = TRUE;
+  $handler->display->display_options['fields']['tid']['separator'] = '';
+  /* Field: Taxonomy term: Term ID */
+  $handler->display->display_options['fields']['tid_1']['id'] = 'tid_1';
+  $handler->display->display_options['fields']['tid_1']['table'] = 'taxonomy_term_data';
+  $handler->display->display_options['fields']['tid_1']['field'] = 'tid';
+  $handler->display->display_options['fields']['tid_1']['relationship'] = 'parent';
+  $handler->display->display_options['fields']['tid_1']['label'] = 'Parent Term ID';
+  $handler->display->display_options['fields']['tid_1']['exclude'] = TRUE;
+  $handler->display->display_options['fields']['tid_1']['separator'] = '';
+  /* Field: Taxonomy term: Name */
+  $handler->display->display_options['fields']['name']['id'] = 'name';
+  $handler->display->display_options['fields']['name']['table'] = 'taxonomy_term_data';
+  $handler->display->display_options['fields']['name']['field'] = 'name';
+  $handler->display->display_options['fields']['name']['label'] = '';
+  $handler->display->display_options['fields']['name']['alter']['word_boundary'] = FALSE;
+  $handler->display->display_options['fields']['name']['alter']['ellipsis'] = FALSE;
+  $handler->display->display_options['fields']['name']['element_label_colon'] = FALSE;
+  $handler->display->display_options['fields']['name']['link_to_taxonomy'] = TRUE;
+  /* Field: COUNT(Growroom asset: Growroom asset ID) */
+  $handler->display->display_options['fields']['id']['id'] = 'id';
+  $handler->display->display_options['fields']['id']['table'] = 'growroom_asset';
+  $handler->display->display_options['fields']['id']['field'] = 'id';
+  $handler->display->display_options['fields']['id']['relationship'] = 'reverse_field_growroom_individual_alias_growroom_asset';
+  $handler->display->display_options['fields']['id']['group_type'] = 'count';
+  $handler->display->display_options['fields']['id']['label'] = '';
+  $handler->display->display_options['fields']['id']['element_label_colon'] = FALSE;
+  $handler->display->display_options['fields']['id']['separator'] = '';
+  $handler->display->display_options['fields']['id']['prefix'] = '(';
+  $handler->display->display_options['fields']['id']['suffix'] = ')';
+  /* Filter criterion: Taxonomy vocabulary: Machine name */
+  $handler->display->display_options['filters']['machine_name']['id'] = 'machine_name';
+  $handler->display->display_options['filters']['machine_name']['table'] = 'taxonomy_vocabulary';
+  $handler->display->display_options['filters']['machine_name']['field'] = 'machine_name';
+  $handler->display->display_options['filters']['machine_name']['value'] = array(
+    'growroom_individual_alias' => 'growroom_individual_alias',
+  );
+  $handler->display->display_options['filters']['machine_name']['group'] = 1;
+
+  /* Display: Page */
+  $handler = $view->new_display('page', 'Page', 'page');
+  $handler->display->display_options['path'] = 'growroom/assets/individuals/alias';
+  $handler->display->display_options['menu']['type'] = 'tab';
+  $handler->display->display_options['menu']['title'] = 'Alias';
+  $handler->display->display_options['menu']['weight'] = '0';
+  $handler->display->display_options['menu']['name'] = 'growroom';
+  $handler->display->display_options['menu']['context'] = 0;
+  $handler->display->display_options['menu']['context_only_inline'] = 0;
+  $translatables['growroom_individual_alias'] = array(
+    t('Master'),
+    t('Individual Alias'),
+    t('more'),
+    t('Apply'),
+    t('Reset'),
+    t('Sort by'),
+    t('Asc'),
+    t('Desc'),
+    t('<h4>Hierarchy <small><a href="/admin/structure/taxonomy/growroom_individual_alias?destination=growroom/assets/individuals/alias">(change)</a></small></h4>'),
+    t('No alias found.'),
+    t('Parent'),
+    t('field_growroom_individual_alias'),
+    t('Term ID'),
+    t('.'),
+    t('Parent Term ID'),
+    t(','),
+    t('('),
+    t(')'),
+    t('Page'),
+  );
+  $export['growroom_individual_alias'] = $view;
+  
+  $view = new view();
   $view->name = 'growroom_individuals';
   $view->description = '';
   $view->tag = 'growroom_plants';
@@ -168,6 +294,7 @@ function growroom_plants_views_default_views() {
   $handler->display->display_options['style_options']['columns'] = array(
     'views_bulk_operations' => 'views_bulk_operations',
     'field_growroom_individual_cultivars' => 'field_growroom_individual_cultivar',
+    'field_growroom_individual_alias' => 'field_growroom_individual_alias',
     'field_growroom_date' => 'field_growroom_date',
     'field_growroom_move_to' => 'field_growroom_move_to',
     'field_growroom_individual_origin' => 'field_growroom_individual_origin',
@@ -196,6 +323,13 @@ function growroom_plants_views_default_views() {
       'empty_column' => 0,
     ),
     'field_growroom_individual_cultivar' => array(
+      'sortable' => 0,
+      'default_sort_order' => 'asc',
+      'align' => '',
+      'separator' => '',
+      'empty_column' => 0,
+    ),
+    'field_growroom_individual_alias' => array(
       'sortable' => 0,
       'default_sort_order' => 'asc',
       'align' => '',
@@ -409,6 +543,10 @@ function growroom_plants_views_default_views() {
   $handler->display->display_options['fields']['field_growroom_individual_cultivar']['id'] = 'field_growroom_individual_cultivar';
   $handler->display->display_options['fields']['field_growroom_individual_cultivar']['table'] = 'field_data_field_growroom_individual_cultivar';
   $handler->display->display_options['fields']['field_growroom_individual_cultivar']['field'] = 'field_growroom_individual_cultivar';
+  /* Field: Growroom asset: Alias */
+  $handler->display->display_options['fields']['field_growroom_individual_alias']['id'] = 'field_growroom_individual_alias';
+  $handler->display->display_options['fields']['field_growroom_individual_alias']['table'] = 'field_data_field_growroom_individual_alias';
+  $handler->display->display_options['fields']['field_growroom_individual_alias']['field'] = 'field_growroom_individual_alias';
   /* Field: Growroom asset: Repop date */
   $handler->display->display_options['fields']['field_growroom_date']['id'] = 'field_growroom_date';
   $handler->display->display_options['fields']['field_growroom_date']['table'] = 'field_data_field_growroom_date';
@@ -493,6 +631,12 @@ function growroom_plants_views_default_views() {
   $handler->display->display_options['sorts']['field_growroom_individual_cultivar_tid']['field'] = 'field_growroom_individual_cultivar_tid';
   $handler->display->display_options['sorts']['field_growroom_individual_cultivar_tid']['exposed'] = TRUE;
   $handler->display->display_options['sorts']['field_growroom_individual_cultivar_tid']['expose']['label'] = 'Cultivar';
+  /* Sort criterion: Growroom asset: Alias (field_growroom_individual_alias) */
+  $handler->display->display_options['sorts']['field_growroom_individual_alias_tid']['id'] = 'field_growroom_individual_alias_tid';
+  $handler->display->display_options['sorts']['field_growroom_individual_alias_tid']['table'] = 'field_data_field_growroom_individual_alias';
+  $handler->display->display_options['sorts']['field_growroom_individual_alias_tid']['field'] = 'field_growroom_individual_alias_tid';
+  $handler->display->display_options['sorts']['field_growroom_individual_alias_tid']['exposed'] = TRUE;
+  $handler->display->display_options['sorts']['field_growroom_individual_alias_tid']['expose']['label'] = 'Alias';
   /* Sort criterion: Growroom asset: origin (field_growroom_individual_origin) */
   $handler->display->display_options['sorts']['field_growroom_individual_origin_value']['id'] = 'field_growroom_individual_origin_value';
   $handler->display->display_options['sorts']['field_growroom_individual_origin_value']['table'] = 'field_data_field_growroom_individual_origin';
@@ -536,7 +680,21 @@ function growroom_plants_views_default_views() {
   $handler->display->display_options['arguments']['field_growroom_individual_cultivar_tid']['validate_options']['vocabularies'] = array(
     'growroom_individual_cultivars' => 'growroom_individual_cultivars',
   );
-
+  /* Contextual filter: Growroom asset: Cultivar (field_growroom_individual_alias) */
+  $handler->display->display_options['arguments']['field_growroom_individual_alias_tid']['id'] = 'field_growroom_individual_alias_tid';
+  $handler->display->display_options['arguments']['field_growroom_individual_alias_tid']['table'] = 'field_data_field_growroom_individual_alias';
+  $handler->display->display_options['arguments']['field_growroom_individual_alias_tid']['field'] = 'field_growroom_individual_alias_tid';
+  $handler->display->display_options['arguments']['field_growroom_individual_alias_tid']['title_enable'] = TRUE;
+  $handler->display->display_options['arguments']['field_growroom_individual_alias_tid']['title'] = 'Individuals of alias %2';
+  $handler->display->display_options['arguments']['field_growroom_individual_alias_tid']['default_argument_type'] = 'fixed';
+  $handler->display->display_options['arguments']['field_growroom_individual_alias_tid']['summary']['number_of_records'] = '0';
+  $handler->display->display_options['arguments']['field_growroom_individual_alias_tid']['summary']['format'] = 'default_summary';
+  $handler->display->display_options['arguments']['field_growroom_individual_alias_tid']['summary_options']['items_per_page'] = '25';
+  $handler->display->display_options['arguments']['field_growroom_individual_alias_tid']['specify_validation'] = TRUE;
+  $handler->display->display_options['arguments']['field_growroom_individual_alias_tid']['validate']['type'] = 'taxonomy_term';
+  $handler->display->display_options['arguments']['field_growroom_individual_alias_tid']['validate_options']['vocabularies'] = array(
+    'growroom_individual_alias' => 'growroom_individual_alias',
+  );
   /* Filter criterion: Growroom asset: Growroom asset type */
   $handler->display->display_options['filters']['type']['id'] = 'type';
   $handler->display->display_options['filters']['type']['table'] = 'growroom_asset';
@@ -570,6 +728,20 @@ function growroom_plants_views_default_views() {
   $handler->display->display_options['filters']['field_growroom_individual_cultivar_tid']['type'] = 'select';
   $handler->display->display_options['filters']['field_growroom_individual_cultivar_tid']['vocabulary'] = 'growroom_individual_cultivars';
   $handler->display->display_options['filters']['field_growroom_individual_cultivar_tid']['hierarchy'] = 1;
+  /* Filter criterion: Growroom asset: Alias (field_growroom_individual_alias) */
+  $handler->display->display_options['filters']['field_growroom_individual_alias_tid']['id'] = 'field_growroom_individual_alias_tid';
+  $handler->display->display_options['filters']['field_growroom_individual_alias_tid']['table'] = 'field_data_field_growroom_individual_alias';
+  $handler->display->display_options['filters']['field_growroom_individual_alias_tid']['field'] = 'field_growroom_individual_alias_tid';
+  $handler->display->display_options['filters']['field_growroom_individual_alias_tid']['group'] = 1;
+  $handler->display->display_options['filters']['field_growroom_individual_alias_tid']['exposed'] = TRUE;
+  $handler->display->display_options['filters']['field_growroom_individual_alias_tid']['expose']['operator_id'] = 'field_growroom_individual_alias_tid_op';
+  $handler->display->display_options['filters']['field_growroom_individual_alias_tid']['expose']['label'] = 'Alias';
+  $handler->display->display_options['filters']['field_growroom_individual_alias_tid']['expose']['operator'] = 'field_growroom_individual_alias_tid_op';
+  $handler->display->display_options['filters']['field_growroom_individual_alias_tid']['expose']['identifier'] = 'field_growroom_individual_alias_tid';
+  $handler->display->display_options['filters']['field_growroom_individual_alias_tid']['expose']['multiple'] = TRUE;
+  $handler->display->display_options['filters']['field_growroom_individual_alias_tid']['type'] = 'select';
+  $handler->display->display_options['filters']['field_growroom_individual_alias_tid']['vocabulary'] = 'growroom_individual_alias';
+  $handler->display->display_options['filters']['field_growroom_individual_alias_tid']['hierarchy'] = 1;
   /* Filter criterion: Growroom asset: origin (field_growroom_individual_origin) */
   $handler->display->display_options['filters']['field_growroom_individual_origin_value']['id'] = 'field_growroom_individual_origin_value';
   $handler->display->display_options['filters']['field_growroom_individual_origin_value']['table'] = 'field_data_field_growroom_individual_origin';
@@ -577,7 +749,7 @@ function growroom_plants_views_default_views() {
   $handler->display->display_options['filters']['field_growroom_individual_origin_value']['group'] = 1;
   $handler->display->display_options['filters']['field_growroom_individual_origin_value']['exposed'] = TRUE;
   $handler->display->display_options['filters']['field_growroom_individual_origin_value']['expose']['operator_id'] = 'field_growroom_individual_origin_value_op';
-  $handler->display->display_options['filters']['field_growroom_individual_origin_value']['expose']['label'] = 'origin';
+  $handler->display->display_options['filters']['field_growroom_individual_origin_value']['expose']['label'] = 'Origin';
   $handler->display->display_options['filters']['field_growroom_individual_origin_value']['expose']['operator'] = 'field_growroom_individual_origin_value_op';
   $handler->display->display_options['filters']['field_growroom_individual_origin_value']['expose']['identifier'] = 'field_growroom_individual_origin_value';
   /* Filter criterion: Growroom asset: Source (field_growroom_individual_source) */
@@ -722,6 +894,7 @@ function growroom_plants_views_default_views() {
     t('.'),
     t('Name'),
     t('Cultivars'),
+    t('Alias'),
     t('Repop date'),
     t('Origin'),
     t('Source'),
@@ -735,6 +908,7 @@ function growroom_plants_views_default_views() {
     t('All'),
     t('Individual in %1'),
     t('Individual of Cultivars %2'),
+    t('Individual of Alias %2'),
     t('Repop date (range)'),
     t('Page'),
     t('Data export'),
@@ -774,8 +948,8 @@ function growroom_plants_views_default_views() {
     'views_bulk_operations' => 'views_bulk_operations',
     'done' => 'done',
 
-    'timestamp' => 'timestamp',
     'name' => 'name',
+    'timestamp' => 'timestamp',
     'field_growroom_individual_mother' => 'field_growroom_individual_mother',
     'field_growroom_asset' => 'field_growroom_asset',
     'field_growroom_area' => 'field_growroom_area',

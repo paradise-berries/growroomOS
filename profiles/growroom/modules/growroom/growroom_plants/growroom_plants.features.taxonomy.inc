@@ -32,5 +32,28 @@ function growroom_plants_taxonomy_default_vocabularies() {
         ),
       ),
     ),
+    'growroom_individual_alias' => array(
+      'name' => 'Growroom Individual Alias',
+      'machine_name' => 'growroom_individual_alias',
+      'description' => 'A vocabulary of growroom individual alias.',
+      'hierarchy' => 1,
+      'module' => 'taxonomy',
+      'weight' => 0,
+      'rdf_mapping' => array(
+        'rdftype' => array(
+          0 => 'skos:ConceptScheme',
+        ),
+        'name' => array(
+          'predicates' => array(
+            0 => 'dc:title',
+          ),
+        ),
+        'description' => array(
+          'predicates' => array(
+            0 => 'rdfs:comment',
+          ),
+        ),
+      ),
+    ),
   );
 }

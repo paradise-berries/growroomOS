@@ -282,8 +282,8 @@ function growroom_plants_field_group_info() {
     'weight' => '4',
     'children' => array(
       0 => 'field_growroom_notes',
-      1 => 'field_growroom_flags',
-      2 => 'timestamp',
+      1 => 'timestamp',
+      2 => 'field_growroom_flags',
       3 => 'group_growroom_category',
       4 => 'group_growroom_assignment',
     ),
@@ -399,10 +399,12 @@ function growroom_plants_field_group_info() {
     'label' => 'Individual',
     'weight' => '4',
     'children' => array(
-      0 => 'field_growroom_individual_cultivar', 
-      1 => 'field_growroom_individual_origin', 
-      2 => 'field_growroom_individual_fertility',
-      3 => 'field_growroom_date', 
+      0 => 'field_growroom_date',
+      1 => 'field_growroom_individual_cultivar', 
+      2 => 'field_growroom_individual_alias', 
+      3 => 'field_growroom_individual_origin', 
+      4 => 'field_growroom_individual_fertility', 
+      5 => 'field_growroom_source', 
     ),
     'format_type' => 'fieldset',
     'format_settings' => array(

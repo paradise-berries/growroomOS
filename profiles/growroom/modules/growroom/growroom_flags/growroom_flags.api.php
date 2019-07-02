@@ -33,8 +33,8 @@ function hook_growroom_flags() {
     'monitor' => t('Monitor'),
     'treatment' => t('Treatment'),
     'group1' => t('Group1'),
-    'test1' => t('Test1'),
-    'test2' => t('Test2'),
+    'seedling' => t('Seedling'),
+    'blossom' => t('Blossom'),
     'control' => t('Control'),
   );
 }

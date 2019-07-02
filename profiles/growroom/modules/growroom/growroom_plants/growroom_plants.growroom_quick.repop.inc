@@ -33,7 +33,7 @@ function growroom_plants_repop_form($form, &$form_state) {
   $form['repop']['mother'] = array(
     '#type' => 'textfield',
     '#title' => t('Mother'),
-    '#description' => t('Select the mother individual. As you type, a dropdown of matching individual names will appear. Click on the one you want, and the field will be filled in with the name and asset ID (example: "Betsy [id: 123]"). The "[id: X]" portion is required.'),
+    '#description' => t('Select the mother individual. As you type, a dropdown of matching individual names will appear. Click on the one you want, and the field will be filled in with the name and asset ID (example: "DateName [id: 123]"). The "[id: X]" portion is required.'),
     '#autocomplete_path' => 'growroom_asset/autocomplete/individual',
     '#required' => TRUE,
   );
@@ -93,17 +93,6 @@ function growroom_plants_repop_form($form, &$form_state) {
     '#title' => t('Barcode ID'),
     '#weight' => 0,
     );
-
-    // Fertility of Offspring.
-    $form['repop']['offspring'][$i]['fertility'] = array(
-      '#type' => 'radios',
-      '#title' => t('Fertility'),
-      '#options' => array(
-        'Hybrid' => t('Hybrid'),
-        'Heirloom' => t('Heirloom'),
-      ),
-      '#weight' => 10,
-    );
     
     // Origin of Offspring.
     $form['repop']['offspring'][$i]['origin'] = array(
@@ -116,7 +105,17 @@ function growroom_plants_repop_form($form, &$form_state) {
       ),
       '#weight' => 9,
     );
-
+    // Fertility of Offspring.
+    $form['repop']['offspring'][$i]['fertility'] = array(
+      '#type' => 'radios',
+      '#title' => t('Fertility'),
+      '#options' => array(
+        'Hybrid' => t('Hybrid'),
+        'Heirloom' => t('Heirloom'),
+      ),
+      '#weight' => 10,
+    );
+    
     // Individual description.
     $form['repop']['offspring'][$i]['description'] = array(
       '#type' => 'text_format',
@@ -299,6 +298,10 @@ function growroom_individual_repop_form_submit($form, &$form_state) {
         // Copy the cultivar to the offspring.
         $individual_cultivar = $parent_wrapper->field_growroom_individual_cultivar->value();
         $offspring_wrapper->field_growroom_individual_cultivar->set($individual_cultivar);
+
+        // Copy the alias to the offspring.
+        $individual_alias = $parent_wrapper->field_growroom_individual_alias->value();
+        $offspring_wrapper->field_growroom_individual_alias->set($individual_alias);
       }
     }
 

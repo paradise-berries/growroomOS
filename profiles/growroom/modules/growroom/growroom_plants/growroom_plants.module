@@ -43,6 +43,13 @@ function growroom_plants_growroom_ui_entities() {
         'growroom_asset' => 'individual',
         'asset_view_arg' => 2,
       ),      
+      'growroom_individual_alias' => array(
+        'label' => t('Alias'),
+        'label_plural' => t('Alias'),
+        'view' => 'growroom_individual_alias',
+        'growroom_asset' => 'individual',
+        'asset_view_arg' => 2,
+      ),
     ),
   );
 }
@@ -74,13 +81,13 @@ function growroom_plants_growroom_log_categories_populate($log) {
 function growroom_plants_restws_field_collection_info() {
   return array(
     'field_growroom_individual_barcode' => array(
-      'alias' => 'barcode',
-      'label' => t('ID barcodes'),
+      'alias' => 'barcode_ID',
+      'label' => t('Barcode ID'),
       'multiple' => TRUE,
       'fields' => array(
         'id' => array(
           'field_name' => 'field_growroom_individual_barcode_id',
-          'field_label' => t('barcode ID'),
+          'field_label' => t('Barcode ID'),
           'field_type' => 'text',
           'field_value' => 'value',        
         ),
@@ -139,7 +146,14 @@ function growroom_plants_feeds_importer_default_alter($importers) {
         'language' => 'und',
       ),
       array(
-        'source' => 'Date of repop',
+        'source' => 'Alias',
+        'target' => 'field_growroom_individual_alias',
+        'term_search' => '0',
+        'autocreate' => 1,
+        'language' => 'und',
+      ),
+      array(
+        'source' => 'Date of Repop',
         'target' => 'field_growroom_date:start',
         'unique' => FALSE,
         'language' => 'und',
@@ -157,13 +171,13 @@ function growroom_plants_feeds_importer_default_alter($importers) {
         'language' => 'und',
       ),
       array(
-        'source' => 'Supplier',
-        'target' => 'field_growroom_supplier',
+        'source' => 'Source',
+        'target' => 'field_growroom_source',
         'unique' => FALSE,
         'language' => 'und',
       ),
       array(
-        'source' => 'barcode ID',
+        'source' => 'Barcode ID',
         'target' => 'field_growroom_individual_barcode:field_growroom_individual_barcode_id',
         'unique' => FALSE,
         'language' => 'und',
@@ -181,7 +195,7 @@ function growroom_plants_feeds_importer_default_alter($importers) {
     $mappings = array(
       array(
         'source' => 'Mother ID',
-        'target' => 'field_growroom_mother',
+        'target' => 'field_growroom_individual_mother',
         'unique' => FALSE,
         'language' => 'und',
       ),
@@ -210,6 +224,10 @@ function growroom_plants_feeds_tamper_default_alter(&$feeds_tampers) {
 
   // Make Cultivar required.
   $feeds_tamper = growroom_import_feeds_tamper_plugin('growroom_asset', 'individual', 'Cultivar', 'required');
+  $feeds_tampers[$feeds_tamper->id] = $feeds_tamper;
+
+  // Make Alias required.
+  $feeds_tamper = growroom_import_feeds_tamper_plugin('growroom_asset', 'individual', 'Alias', 'required');
   $feeds_tampers[$feeds_tamper->id] = $feeds_tamper;
 
   // Convert date of repop to a Unix timestamp.
@@ -357,8 +375,8 @@ function growroom_plants_repop_log_sync($log) {
       if (!$mother_exists) {
         $ofspring_wrapper->field_growroom_parent[] = $mother_id;
         $message_args = array(
-          '!mother_path' => url('growroom/asset/' . $log_wrapper->field_growroom_mother->getIdentifier()),
-          '@mother_label' => $log_wrapper->field_growroom_mother->label(),
+          '!mother_path' => url('growroom/asset/' . $log_wrapper->field_growroom_individual_mother->getIdentifier()),
+          '@mother_label' => $log_wrapper->field_growroom_individual_mother->label(),
           '!offspring_path' => url('growroom/asset/' . $offspring_wrapper->getIdentifier()),
           '@offspring_label' => $offspring_wrapper->label(),
         );

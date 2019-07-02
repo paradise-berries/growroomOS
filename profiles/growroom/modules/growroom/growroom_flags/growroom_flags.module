@@ -33,8 +33,8 @@ function growroom_flags_growroom_flags() {
     'followup' => t('FollowUp'),
     'treatment' => t('Treatment'),
     'group1' => t('Group1'),
-    'test1' => t('Test1'),
-    'test2' => t('Test2'),
+    'seedling' => t('Seedling'),
+    'flower' => t('Flower'),
     'control' => t('Control'),
   );
 }
